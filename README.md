@@ -9,6 +9,10 @@ and every person helping you along the way. Ask Claude where things stand.**
 > suggestions are welcome; changes from pull requests are carried over by hand into the private
 > repo and come back in a later update.
 
+![The overview: every open opportunity by stage, with salary, interest, interviews, follow-ups and closing dates](docs/screenshots/overview-desktop.png)
+
+<sub>Screenshots use made-up companies and people.</sub>
+
 ## Why use this?
 
 Looking for a job is a job. Whether you were laid off and need the next role soon, or you're
@@ -51,6 +55,26 @@ worth your time.
 - **Fast capture.** A company and a job title are all it needs. Paste a posting's link and
   **Fill from link** brings in the details from most company job sites (not LinkedIn), then
   add more when you have them.
+
+### A quick look
+
+Each opportunity keeps its details, its point of contact, the lead it came through, and a dated
+history of every stage change and interview:
+
+![An opportunity's details and its history](docs/screenshots/opportunity-desktop.png)
+
+**Networking leads** keep the people helping you, the roles they led to, and notes from each
+conversation:
+
+![Networking leads with their notes](docs/screenshots/leads-desktop.png)
+
+On your phone, the board becomes tabs, one stage at a time, in light or dark:
+
+<p>
+  <img src="docs/screenshots/overview-phone.png" alt="The overview on a phone, showing the Applied tab" width="250">
+  <img src="docs/screenshots/overview-dark-phone.png" alt="The same overview in dark mode" width="250">
+  <img src="docs/screenshots/leads-phone.png" alt="A networking lead and its notes on a phone" width="250">
+</p>
 
 ### Get your own
 
