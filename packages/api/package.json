@@ -1,0 +1,31 @@
+{
+  "name": "@jot/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Lambda handler for the job opportunity tracker API",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "tsx watch scripts/local-api.ts",
+    "create-local-table": "tsx scripts/create-local-table.ts",
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1152.0",
+    "@aws-sdk/client-lambda": "^3.1152.0",
+    "@aws-sdk/lib-dynamodb": "^3.1152.0",
+    "@jot/shared": "*",
+    "@modelcontextprotocol/sdk": "~1.32.1",
+    "aws-jwt-verify": "~5.2.1",
+    "htmlparser2": "~11.0.0",
+    "ulid": "^3.0.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.164",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15"
+  }
+}

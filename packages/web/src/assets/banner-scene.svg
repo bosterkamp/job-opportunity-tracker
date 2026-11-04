@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5000 100">
+  <!-- The banner's scene (feature 008): the icon's synthwave sunset, stretched into a wide strip.
+       It runs along the bottom of the banner under a CSS sky gradient, and is scaled to the
+       strip's height, so a phone shows its middle and a 2,560 px screen all of it. The text
+       never sits on it, so the sun and the horizon glow can be as bright as the icon's. Keep its
+       colours in step with public/icon.svg. -->
+  <defs>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe23b" />
+      <stop offset="1" stop-color="#ff2f7d" />
+    </linearGradient>
+    <mask id="stripes">
+      <rect width="5000" height="100" fill="#fff" />
+      <rect y="34" width="5000" height="3" fill="#000" />
+      <rect y="42" width="5000" height="4" fill="#000" />
+      <rect y="51" width="5000" height="5" fill="#000" />
+    </mask>
+  </defs>
+
+  <!-- Sparkles in the sky, either side of the sun. -->
+  <g fill="#ffffff">
+    <path d="M2240 18 l3 -9 l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 Z" />
+    <path d="M1900 30 l2 -6 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2 Z" />
+    <path d="M3080 12 l2 -6 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2 Z" />
+    <path d="M1560 14 l2 -6 l2 6 l6 2 l-6 2 l-2 6 l-2 -6 l-6 -2 Z" />
+    <path d="M3420 26 l3 -9 l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 Z" />
+  </g>
+
+  <!-- The striped sun, setting right of centre. -->
+  <circle cx="2800" cy="60" r="56" fill="url(#sun)" mask="url(#stripes)" />
+
+  <!-- The neon grid floor, with lines running to a vanishing point at the centre. -->
+  <rect y="60" width="5000" height="40" fill="#12002a" />
+  <g stroke="#ff3fd8" stroke-width="1.5" fill="none">
+    <path d="M0 66 H5000 M0 75 H5000 M0 88 H5000" />
+    <path
+      d="M2500 60 V100 M2440 60 L2260 100 M2560 60 L2740 100 M2380 60 L2020 100 M2620 60 L2980 100 M2320 60 L1780 100 M2680 60 L3220 100 M2260 60 L1540 100 M2740 60 L3460 100 M2200 60 L1300 100 M2800 60 L3700 100 M2140 60 L1060 100 M2860 60 L3940 100 M2080 60 L820 100 M2920 60 L4180 100 M2020 60 L580 100 M2980 60 L4420 100 M1960 60 L340 100 M3040 60 L4660 100 M1900 60 L100 100 M3100 60 L4900 100 M1840 60 L-140 100 M3160 60 L5140 100"
+    />
+  </g>
+  <path d="M0 60 H5000" stroke="#00f0ff" stroke-width="2" />
+</svg>

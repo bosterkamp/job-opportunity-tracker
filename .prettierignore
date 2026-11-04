@@ -1,0 +1,19 @@
+node_modules/
+dist/
+cdk.out/
+coverage/
+.tsc/
+playwright-report/
+test-results/
+package-lock.json
+
+# Spec Kit docs and tool config are hand-formatted
+.specify/
+.claude/
+specs/
+reports/
+.stryker-tmp/
+
+# Fixture pages are kept exactly as a site might serve them
+packages/api/tests/fixtures/
+e2e/fixtures/postings/

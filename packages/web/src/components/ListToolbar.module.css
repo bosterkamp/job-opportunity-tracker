@@ -1,0 +1,42 @@
+.toolbar {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.field label {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.input {
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+/* The search field: a field that takes the spare room in the toolbar row. */
+.searchField {
+  composes: field;
+}
+
+/* Tablet and up: the controls sit in one row, with search taking the spare room. */
+@media (min-width: 640px) {
+  .toolbar {
+    grid-template-columns: repeat(var(--controls), max-content) 1fr;
+    align-items: end;
+  }
+
+  .searchField {
+    grid-column: -2;
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@jot/shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Domain rules and schemas shared by the web app and the API",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --build",
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  }
+}

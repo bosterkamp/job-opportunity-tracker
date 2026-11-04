@@ -1,0 +1,75 @@
+.rating {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.legend {
+  font-weight: 600;
+  margin-bottom: var(--space-1);
+}
+
+.stars {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.star {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--touch-target);
+  min-height: var(--touch-target);
+  font-size: 1.75rem;
+  line-height: 1;
+  color: var(--color-accent);
+  cursor: pointer;
+}
+
+/* The radio stays focusable and keyboard-operable; only its default dot is hidden. */
+.radio {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+}
+
+.star:focus-within {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius);
+}
+
+.status {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.clear {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  background: none;
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.display {
+  color: var(--color-accent);
+  letter-spacing: 0.1em;
+}
+
+.notRated {
+  color: var(--color-text-muted);
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

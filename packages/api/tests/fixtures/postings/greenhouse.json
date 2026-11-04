@@ -1,0 +1,20 @@
+{
+  "absolute_url": "https://job-boards.greenhouse.io/soylent/jobs/4001",
+  "id": 4001,
+  "title": "Revenue Accounting &amp; Reporting Lead",
+  "company_name": "Soylent",
+  "location": { "name": "San Francisco, CA | Seattle, WA" },
+  "metadata": [
+    { "id": 1, "name": "Location Type", "value": "On-Site", "value_type": "single_select" }
+  ],
+  "pay_input_ranges": [
+    {
+      "min_cents": 19000000,
+      "max_cents": 23000000,
+      "currency_type": "USD",
+      "title": "Annual Salary:",
+      "blurb": "<p>Range</p>"
+    }
+  ],
+  "content": "&lt;div class=&quot;content-intro&quot;&gt;&lt;h2&gt;About Soylent&lt;/h2&gt;&lt;p&gt;We make food &amp;amp; drinks.&lt;/p&gt;&lt;/div&gt;&lt;ul&gt;&lt;li&gt;Close the books&lt;/li&gt;&lt;/ul&gt;"
+}

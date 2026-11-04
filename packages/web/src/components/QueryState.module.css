@@ -1,0 +1,83 @@
+/* Loading placeholders: grey blocks in the rough shape of what's coming. */
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: var(--space-3);
+}
+
+.cards .block {
+  height: 6rem;
+}
+
+.detail {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 40rem;
+}
+
+.detail .block {
+  height: 1.25rem;
+}
+
+.detail .block:first-of-type {
+  width: 60%;
+  height: 2rem;
+}
+
+.block {
+  border-radius: var(--radius);
+  background: var(--color-border);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .block {
+    animation: none;
+  }
+}
+
+/* Read by screen readers, hidden on screen. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.alert {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-danger);
+  border-radius: var(--radius);
+  color: var(--color-danger);
+}
+
+.alert p {
+  margin: 0;
+}
+
+.retry {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.retry:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

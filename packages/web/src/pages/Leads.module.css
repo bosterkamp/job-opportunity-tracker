@@ -1,0 +1,184 @@
+/* The Networking leads page (feature 010). */
+.heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.heading h2 {
+  margin: 0;
+}
+
+/* Like the header's "Add opportunity". */
+.addButton {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--color-accent);
+  color: var(--color-accent-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* Wide enough for a card's three buttons on one row. */
+  grid-template-columns: repeat(auto-fill, minmax(min(19rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+
+/* A column, not a grid: a grid spreads a short card's spare height over its rows, which made
+   the buttons taller on leads without opportunities. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  height: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow-wrap: anywhere;
+}
+
+.name {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+
+.detail {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.opportunities {
+  margin: 0;
+  padding-left: var(--space-6);
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* At the bottom of the card, so they line up across a row of cards. They wrap as whole
+   buttons: the card's anywhere-wrapping (for long notes) never splits a button's word. */
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: auto;
+  padding-top: var(--space-2);
+}
+
+.actions button {
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+/* Adding is the card's main action, in the accent color. */
+.addNote {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* Deleting stands apart: in the danger color, at the far end of the row. */
+.deleteLead {
+  margin-left: auto;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+/* A lead's notes (feature 011): one per conversation, newest first. */
+.notes {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-2);
+}
+
+.noteList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3) var(--space-3);
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-column);
+}
+
+/* The day, with the note's own Edit and Delete beside it. */
+.noteHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: var(--space-2);
+}
+
+.noteDay {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+/* Line breaks as typed; long words and links wrap (the card wraps anywhere). */
+.noteText {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.noteActions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+/* Lighter than the card's buttons, so a note's actions read as the note's, but still a full
+   touch target. */
+.noteButton {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.noteButton:hover {
+  text-decoration: underline;
+}
+
+.noteDelete {
+  color: var(--color-danger);
+}
+
+/* "Show all N notes": a text button, so it reads as part of the notes. */
+.toggle {
+  align-self: flex-start;
+  min-height: var(--touch-target);
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}

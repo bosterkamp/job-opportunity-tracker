@@ -1,0 +1,115 @@
+.card {
+  position: relative;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  overflow-wrap: anywhere;
+}
+
+/* A follow-up is due: an accent border so it stands out on the board. */
+.cardDue {
+  composes: card;
+  border: 2px solid var(--color-danger);
+}
+
+.card:focus-within {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+/* The company, with the interview count at the top right (feature 005). */
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.interviews {
+  flex-shrink: 0;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-accent);
+  border-radius: 999px;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.company {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+/* The company link covers the whole card, so a tap anywhere opens it; the "Move to…"
+   button sits above that layer and stays separately clickable. */
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.title {
+  margin: 0;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.salary {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.badge {
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  font-size: var(--text-sm);
+}
+
+.dueBadge {
+  composes: badge;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+.move {
+  position: relative;
+  z-index: 1;
+  justify-self: start;
+  margin-top: var(--space-1);
+}
+
+/* The posting closes within a week (feature 009): the warning colour, as for a due follow-up. */
+.deadlineSoon {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* The posting has ended: nothing more to do, so it stays quiet. */
+.deadlineEnded {
+  color: var(--color-text-muted);
+  font-style: italic;
+}

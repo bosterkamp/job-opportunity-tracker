@@ -1,0 +1,95 @@
+/* Design tokens. Mobile-first: base styles target phones; wider layouts are added with
+   min-width media queries at 640px (tablet) and 1280px (desktop board). */
+:root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius: 0.5rem;
+  --touch-target: 44px;
+  --content-max: 72rem;
+  --board-max: 96rem;
+  --bottom-nav-height: 3.5rem;
+
+  --font-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+
+  /* The colours come from the app icon (feature 008): lavender and white with magenta in light
+     mode, deep purple with neon pink in dark mode. Every pair used together meets WCAG AA
+     (tests/theme.test.ts). Warnings are orange, so they never look like the accent. */
+  --color-bg: #faf7ff;
+  --color-surface: #ffffff;
+  --color-column: #f3edfb;
+  --color-text: #1d1030;
+  --color-text-muted: #5f5277;
+  --color-border: #e4dcf0;
+  --color-control-border: #8f80aa;
+  --color-accent: #b8146f;
+  --color-accent-text: #ffffff;
+  --color-danger: #b54708;
+  --color-focus: #0e7490;
+
+  /* The banner (feature 008): the icon's colours, the same in light and dark mode. */
+  --banner-sky: #140230;
+  --banner-sky-mid: #5b1683;
+  --banner-glow: #ff4fa3;
+  --banner-text: #ffffff;
+  --banner-button: #ff3fd8;
+  --banner-button-text: #12002a;
+  --banner-focus: #00f0ff;
+
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #12002a;
+    --color-surface: #1f0b3e;
+    --color-column: #180534;
+    --color-text: #f3ecff;
+    --color-text-muted: #b9a8d6;
+    --color-border: #3b2563;
+    --color-control-border: #7a62a8;
+    --color-accent: #ff4fa3;
+    --color-accent-text: #12002a;
+    --color-danger: #ffb547;
+    --color-focus: #00f0ff;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.5;
+}
+
+a {
+  color: var(--color-accent);
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  line-height: 1.2;
+  margin: 0 0 var(--space-4);
+}

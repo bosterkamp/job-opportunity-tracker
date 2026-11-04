@@ -1,0 +1,88 @@
+openapi: 3.1.0
+info:
+  title: Job Opportunity Tracker - Import from link
+  version: 1.0.0
+  description: >
+    Reads a job posting from a link and returns its details to fill the add form. Nothing is
+    stored. Served by its own Lambda (ImportFunction), behind the same Cognito JWT authorizer as
+    the rest of the API (feature 001's contracts/api.openapi.yaml).
+
+security:
+  - cognito: []
+
+paths:
+  /imports:
+    post:
+      summary: Read a job posting and return its details
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ImportRequest' }
+      responses:
+        '200':
+          description: Details found. Only the fields the posting states are present.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostingDetails' }
+        '400':
+          description: The body isn't valid (VALIDATION_ERROR, with `fields`).
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401':
+          description: Missing or invalid token (from the API Gateway authorizer).
+        '422':
+          description: The posting couldn't be read. `code` says why; `message` is shown as is.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - properties:
+                      code:
+                        enum:
+                          [SIGN_IN_REQUIRED, NO_JOB_DETAILS, MULTIPLE_JOBS, UNREACHABLE, URL_NOT_ALLOWED]
+
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ImportRequest:
+      type: object
+      required: [url]
+      additionalProperties: false
+      properties:
+        url: { type: string, format: uri, maxLength: 2000, pattern: '^https?://' }
+
+    PostingDetails:
+      type: object
+      required: [title, source]
+      additionalProperties: false
+      properties:
+        company: { type: string, maxLength: 200 }
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 20000 }
+        descriptionTruncated: { type: boolean }
+        location: { type: string, maxLength: 200 }
+        workArrangement: { type: string, enum: [REMOTE, HYBRID, ONSITE] }
+        compensation: { type: string, maxLength: 500 }
+        source: { type: string, maxLength: 200 }
+        postedUntil:
+          type: string
+          format: date
+          description: >
+            Feature 009: the date in the posting's schema.org validThrough, as the posting states
+            it (the first ten characters of a date or date-time). Left out when there's none.
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        fields: { type: array, items: { type: string } }

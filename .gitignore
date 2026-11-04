@@ -1,0 +1,25 @@
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Node / build output
+node_modules/
+dist/
+cdk.out/
+cdk-outputs.json
+coverage/
+.tsc/
+*.tsbuildinfo
+.env*.local
+*.log
+
+# Playwright
+playwright-report/
+test-results/
+
+# Mutation testing (Stryker)
+.stryker-tmp/
+reports/
