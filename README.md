@@ -3,6 +3,12 @@
 **Keep your whole job search in one place: every opening, every application, every interview,
 and every person helping you along the way. Ask Claude where things stand.**
 
+> **About this repo:** it's a public copy of the private repository I build and run my own
+> tracker from. I keep working on the app there and copy it here periodically, so new features
+> arrive in batches, each as a single commit, rather than as day-to-day history. Issues and
+> suggestions are welcome; changes from pull requests are carried over by hand into the private
+> repo and come back in a later update.
+
 ## Why use this?
 
 Looking for a job is a job. Whether you were laid off and need the next role soon, or you're
