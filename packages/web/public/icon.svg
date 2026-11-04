@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Job Tracker's icon: a chrome briefcase launching like a rocket over a 90s synthwave sunset
+       and neon grid ("career launch"). The tile's rounded corners suit browsers; make-icons.mjs
+       squares them off for the iPhone, which rounds its own. Rendered to the PNGs in icons/ by
+       scripts/make-icons.mjs. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#140230" />
+      <stop offset="0.55" stop-color="#5b1683" />
+      <stop offset="0.72" stop-color="#ff4fa3" />
+    </linearGradient>
+    <linearGradient id="sun" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffe23b" />
+      <stop offset="1" stop-color="#ff2f7d" />
+    </linearGradient>
+    <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.4" stop-color="#9fe2ff" />
+      <stop offset="0.52" stop-color="#2b2f7a" />
+      <stop offset="0.6" stop-color="#7a4fd0" />
+      <stop offset="0.85" stop-color="#e8f7ff" />
+      <stop offset="1" stop-color="#ffffff" />
+    </linearGradient>
+    <linearGradient id="flame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" />
+      <stop offset="0.3" stop-color="#ffe23b" />
+      <stop offset="0.7" stop-color="#ff3fd8" />
+      <stop offset="1" stop-color="#ff3fd8" stop-opacity="0" />
+    </linearGradient>
+    <mask id="stripes">
+      <rect width="512" height="512" fill="#fff" />
+      <rect y="262" width="512" height="6" fill="#000" />
+      <rect y="284" width="512" height="9" fill="#000" />
+      <rect y="308" width="512" height="12" fill="#000" />
+      <rect y="334" width="512" height="15" fill="#000" />
+    </mask>
+    <clipPath id="tile"><rect width="512" height="512" rx="112" /></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="url(#sky)" />
+    <circle cx="256" cy="300" r="160" fill="url(#sun)" mask="url(#stripes)" />
+    <rect y="360" width="512" height="152" fill="#12002a" />
+    <g stroke="#ff3fd8" stroke-width="3" fill="none">
+      <path d="M0 360 H512" stroke="#00f0ff" stroke-width="4" />
+      <path d="M0 378 H512 M0 402 H512 M0 434 H512 M0 476 H512" />
+      <path d="M256 360 V512 M216 360 L120 512 M296 360 L392 512 M176 360 L-16 512 M336 360 L528 512 M136 360 L-150 512 M376 360 L662 512" />
+    </g>
+
+    <g transform="rotate(-14 256 230)">
+      <!-- Exhaust -->
+      <path d="M200 296 C 196 350 226 400 256 446 C 286 400 316 350 312 296 Z" fill="url(#flame)" />
+      <path d="M228 296 C 228 336 242 366 256 392 C 270 366 284 336 284 296 Z" fill="#ffffff" opacity="0.85" />
+      <!-- Speed lines -->
+      <g stroke="#00f0ff" stroke-width="7" stroke-linecap="round">
+        <path d="M150 300 V 372" />
+        <path d="M362 300 V 352" />
+        <path d="M126 250 V 300" />
+      </g>
+      <!-- Chrome briefcase -->
+      <path d="M216 150 V 128 Q 216 112 232 112 H 280 Q 296 112 296 128 V 150" fill="none" stroke="#12002a" stroke-width="24" />
+      <path d="M216 150 V 128 Q 216 112 232 112 H 280 Q 296 112 296 128 V 150" fill="none" stroke="#9fe2ff" stroke-width="10" />
+      <rect x="150" y="146" width="212" height="156" rx="22" fill="url(#chrome)" stroke="#12002a" stroke-width="12" />
+      <path d="M150 214 H 362" stroke="#12002a" stroke-width="8" />
+      <rect x="236" y="200" width="40" height="30" rx="6" fill="#ff3fd8" stroke="#12002a" stroke-width="6" />
+    </g>
+
+    <g fill="#ffffff">
+      <path d="M412 96 l6 -18 l6 18 l18 6 l-18 6 l-6 18 l-6 -18 l-18 -6 Z" />
+      <path d="M84 132 l4 -12 l4 12 l12 4 l-12 4 l-4 12 l-4 -12 l-12 -4 Z" />
+      <path d="M430 220 l3 -9 l3 9 l9 3 l-9 3 l-3 9 l-3 -9 l-9 -3 Z" />
+    </g>
+  </g>
+</svg>

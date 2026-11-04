@@ -1,0 +1,587 @@
+openapi: 3.1.0
+info:
+  title: Job Opportunity Tracker API
+  version: 1.0.0
+  description: >
+    REST API behind API Gateway HTTP API. Every route requires a Cognito access token
+    (Authorization: Bearer <JWT>). Field rules are defined in ../data-model.md.
+    POST /imports ("Fill from link") is defined by feature 002 in
+    ../../002-import-job-from-link/contracts/imports.openapi.yaml.
+    The MCP server for Claude (feature 003) is described in ../../003-mcp-server/contracts/.
+    Changes made through it add `via: CLAUDE` to history entries and set
+    `detailsEditedViaClaudeAt` on the opportunity (both optional; see feature 003's data model).
+security:
+  - cognito: []
+
+paths:
+  /opportunities:
+    get:
+      summary: List opportunities (overview or archive)
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, CLOSED], default: OPEN }
+      responses:
+        '200':
+          description: Opportunities with the given status (no history)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Opportunity' } }
+    post:
+      summary: Create an opportunity (starts in CONSIDERING)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OpportunityInput' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /opportunities/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    get:
+      summary: Get one opportunity with its full stage history
+      responses:
+        '200':
+          description: Found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Edit details (never changes the stage; use stage-changes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OpportunityPatch' }
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Opportunity' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Permanently delete an opportunity and its history
+      description: >
+        Requires the confirmation header, so this cannot happen by accident (FR-016).
+        Closing an opportunity is done with a stage change, not with this endpoint.
+      parameters:
+        - name: X-Confirm-Delete
+          in: header
+          required: true
+          schema: { type: string, enum: ['true'] }
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /opportunities/{id}/stage-changes:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Move the opportunity to another stage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [toStage, expectedChangeCount]
+              properties:
+                toStage: { $ref: '#/components/schemas/Stage' }
+                note: { type: string, maxLength: 2000 }
+                changedAt:
+                  type: string
+                  format: date-time
+                  description: Defaults to now. May be earlier; not in the future.
+                expectedChangeCount:
+                  type: integer
+                  description: The opportunity's current changeCount (optimistic lock).
+      responses:
+        '201':
+          description: Stage changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: changeCount mismatch (concurrent or repeated request); reload and retry
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '422':
+          description: Rule violation (SAME_STAGE or FUTURE_DATE)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # Feature 005: interviews. They never change the stage, status, lastStageChangeAt, or
+  # changeCount. Every route answers with the opportunity, its history, and its interviews.
+  /opportunities/{id}/interviews:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Log an interview (at most 6 per opportunity)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InterviewInput' }
+      responses:
+        '201':
+          description: Interview logged; interviewCount is one higher
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400':
+          description: >
+            The date is in the future ("The date can't be in the future") or before the date
+            added ("An interview can't be before the date added"), the note is too long, or it
+            would be the 7th ("This opportunity already has 6 interviews, the most it can have")
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /opportunities/{id}/interviews/{interviewId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: interviewId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Change an interview's date or note (null or blank clears the note)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InterviewInput' }
+      responses:
+        '200':
+          description: Interview changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: No such opportunity, or "Interview not found"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Remove an interview (deliberate; needs X-Confirm-Delete)
+      parameters:
+        - { name: X-Confirm-Delete, in: header, required: true, schema: { type: string, enum: ['true'] } }
+      responses:
+        '200':
+          description: Interview removed; interviewCount is one lower
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: '"Interview not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # Networking leads (feature 010): a name, an email and a phone, nothing else.
+  /leads:
+    get:
+      summary: List networking leads, by name (ignoring case), each with its opportunities
+      responses:
+        '200':
+          description: Every lead, with its linked opportunities (open and closed, newest stage change first)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/LeadWithOpportunities' } }
+    post:
+      summary: Add a networking lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeadInput' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lead' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+
+  /leads/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Change a lead's name, email or phone (null or blank clears email or phone)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeadPatch' }
+      responses:
+        '200':
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Lead' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: '"Lead not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete a lead and its notes, and remove the link from every opportunity linked to it
+      description: >
+        Requires the confirmation header, as deleting an opportunity does. The linked
+        opportunities stay; only their leadId is removed (and their updatedAt set). The lead's
+        notes (feature 011) are deleted with it.
+      parameters:
+        - { name: X-Confirm-Delete, in: header, required: true, schema: { type: string, enum: ['true'] } }
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: '"Lead not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # Notes on a lead (feature 011): one dated note for each conversation.
+  /leads/{id}/notes:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    post:
+      summary: Add a note to a lead (at most 200 a lead)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeadNoteInput' }
+      responses:
+        '201':
+          description: Added
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeadNote' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          description: '"Lead not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /leads/{id}/notes/{noteId}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+      - { name: noteId, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Change a note's text or date
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LeadNotePatch' }
+      responses:
+        '200':
+          description: Changed
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LeadNote' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: '"Note not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Delete a note
+      parameters:
+        - { name: X-Confirm-Delete, in: header, required: true, schema: { type: string, enum: ['true'] } }
+      responses:
+        '204': { description: Deleted }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: '"Note not found"'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    cognito:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    ValidationError:
+      description: Invalid input; `fields` names the problem fields
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Stage:
+      type: string
+      enum: [CONSIDERING, APPLIED, CONTACTED, INTERVIEWING, OFFER,
+             ACCEPTED, DECLINED, REJECTED, NO_LONGER_AVAILABLE, WITHDRAWN, NO_RESPONSE]
+
+    Contact:
+      type: object
+      properties:
+        name: { type: string, maxLength: 200 }
+        role: { type: string, maxLength: 200 }
+        email: { type: string, format: email }
+        phone: { type: string, maxLength: 50 }
+
+    OpportunityDetails:
+      type: object
+      properties:
+        contact: { $ref: '#/components/schemas/Contact' }
+        description: { type: string, maxLength: 20000 }
+        interest: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        postingUrl: { type: string, format: uri }
+        location: { type: string, maxLength: 200 }
+        workArrangement: { type: string, enum: [ONSITE, HYBRID, REMOTE] }
+        # Feature 004: whole numbers with no currency or pay period. When both are set,
+        # salaryMin <= salaryMax ("The minimum can't be more than the maximum", on salaryMin);
+        # a PATCH that changes one end is checked against the stored other end.
+        salaryMin: { type: [integer, 'null'], minimum: 0, maximum: 10000000 }
+        salaryMax: { type: [integer, 'null'], minimum: 0, maximum: 10000000 }
+        compensation:
+          type: string
+          maxLength: 500
+          description: >
+            Shown as "Pay notes" (feature 004): anything about pay beyond the range, such as
+            bonus, equity, currency, or pay period.
+        source: { type: string, maxLength: 200 }
+        followUpDate: { type: [string, 'null'], format: date }
+        postedUntil:
+          type: [string, 'null']
+          format: date
+          description: >
+            The date the posting is up until (feature 009). Any date, past or future ("Use a date
+            like 2026-11-03" otherwise). Returned only when set; on PATCH, null or blank clears it.
+        leadId:
+          type: [string, 'null']
+          maxLength: 100
+          description: >
+            The networking lead it came through (feature 010), by id. It must exist ("That lead
+            doesn't exist", on leadId). Returned only when set; on PATCH, null or blank removes the
+            link. It adds no history entry.
+        notes: { type: string, maxLength: 20000 }
+        createdAt:
+          type: string
+          format: date-time
+          description: >
+            The date added (feature 004), when it isn't now. Not more than 60 seconds in the
+            future ("The date can't be in the future"). On create it also dates the first history
+            entry and lastStageChangeAt. On PATCH it moves the first history entry too (and
+            lastStageChangeAt, before any move), can't be cleared, and can't be after the first
+            stage change ("The date added can't be after the first stage change") or the first
+            interview ("The date added can't be after the first interview"); a stage change made
+            at the same time gives 409 CONFLICT.
+
+    OpportunityInput:
+      allOf:
+        - type: object
+          required: [company, title]
+          properties:
+            company: { type: string, minLength: 1, maxLength: 200 }
+            title: { type: string, minLength: 1, maxLength: 200 }
+        - $ref: '#/components/schemas/OpportunityDetails'
+
+    OpportunityPatch:
+      description: >
+        Any subset of fields; omitted fields are unchanged. company/title, if present, must be
+        non-empty. For optional fields, null or a blank string clears the field; a contact whose
+        fields are all blank clears the contact. Unknown fields are rejected.
+      allOf:
+        - type: object
+          properties:
+            company: { type: string, minLength: 1, maxLength: 200 }
+            title: { type: string, minLength: 1, maxLength: 200 }
+        - $ref: '#/components/schemas/OpportunityDetails'
+
+    Opportunity:
+      allOf:
+        - $ref: '#/components/schemas/OpportunityInput'
+        - type: object
+          required: [id, stage, status, createdAt, updatedAt, lastStageChangeAt, changeCount]
+          properties:
+            id: { type: string }
+            stage: { $ref: '#/components/schemas/Stage' }
+            status: { type: string, enum: [OPEN, CLOSED] }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            lastStageChangeAt: { type: string, format: date-time }
+            changeCount: { type: integer }
+            interviewCount:
+              type: integer
+              minimum: 0
+              maximum: 6
+              description: Feature 005. How many interviews are logged; missing means 0.
+
+    StageChange:
+      type: object
+      required: [seq, toStage, changedAt, recordedAt]
+      properties:
+        seq: { type: integer }
+        fromStage: { oneOf: [{ $ref: '#/components/schemas/Stage' }, { type: 'null' }] }
+        toStage: { $ref: '#/components/schemas/Stage' }
+        changedAt: { type: string, format: date-time }
+        note: { type: [string, 'null'] }
+        recordedAt: { type: string, format: date-time }
+
+    OpportunityWithHistory:
+      allOf:
+        - $ref: '#/components/schemas/Opportunity'
+        - type: object
+          properties:
+            history:
+              type: array
+              description: Sorted by changedAt, then seq
+              items: { $ref: '#/components/schemas/StageChange' }
+            interviews:
+              type: array
+              description: Feature 005. Sorted by heldAt, then recordedAt
+              items: { $ref: '#/components/schemas/Interview' }
+
+    Interview:
+      type: object
+      required: [id, heldAt, note, recordedAt]
+      properties:
+        id: { type: string }
+        heldAt: { type: string, format: date-time }
+        note: { type: [string, 'null'], maxLength: 200 }
+        recordedAt: { type: string, format: date-time }
+        via: { type: string, enum: [CLAUDE], description: Logged or last changed through Claude }
+
+    InterviewInput:
+      type: object
+      additionalProperties: false
+      properties:
+        heldAt:
+          type: string
+          format: date-time
+          description: >
+            Defaults to now when adding. Not more than 60 seconds in the future, and not before
+            the opportunity's createdAt.
+        note: { type: [string, 'null'], maxLength: 200 }
+
+    LeadInput:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200, description: '"Name is required"' }
+        email: { type: string, format: email, description: '"Enter a valid email address"' }
+        phone: { type: string, maxLength: 50 }
+
+    LeadPatch:
+      type: object
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        email: { type: [string, 'null'], format: email }
+        phone: { type: [string, 'null'], maxLength: 50 }
+
+    Lead:
+      allOf:
+        - $ref: '#/components/schemas/LeadInput'
+        - type: object
+          required: [id, createdAt, updatedAt]
+          properties:
+            id: { type: string }
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+
+    LeadWithOpportunities:
+      allOf:
+        - $ref: '#/components/schemas/Lead'
+        - type: object
+          required: [opportunities, notes]
+          properties:
+            opportunities:
+              type: array
+              items:
+                type: object
+                required: [id, company, title, stage, status]
+                properties:
+                  id: { type: string }
+                  company: { type: string }
+                  title: { type: string }
+                  stage: { $ref: '#/components/schemas/Stage' }
+                  status: { type: string, enum: [OPEN, CLOSED] }
+            notes:
+              description: Newest heldAt first, then newest createdAt (feature 011)
+              type: array
+              items: { $ref: '#/components/schemas/LeadNote' }
+
+    LeadNoteInput:
+      type: object
+      required: [text]
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          minLength: 1
+          maxLength: 5000
+          description: '"Write a note" when blank; line breaks kept, trimmed at the ends'
+        heldAt:
+          type: string
+          format: date-time
+          description: >
+            When the conversation was; defaults to now. "A note can't be dated in the future".
+            The 201st note on a lead is refused: "This lead already has 200 notes, the most it
+            can have".
+
+    LeadNotePatch:
+      type: object
+      additionalProperties: false
+      properties:
+        text: { type: string, minLength: 1, maxLength: 5000 }
+        heldAt: { type: string, format: date-time }
+
+    LeadNote:
+      type: object
+      required: [id, leadId, heldAt, text, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        leadId: { type: string }
+        heldAt: { type: string, format: date-time }
+        text: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum: [VALIDATION_ERROR, NOT_FOUND, CONFLICT, SAME_STAGE, FUTURE_DATE, UNAUTHORIZED, INTERNAL_ERROR]
+        message: { type: string }
+        fields: { type: array, items: { type: string } }

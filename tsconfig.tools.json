@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "outDir": "./.tsc/tools"
+  },
+  "include": ["*.ts", "scripts/*.d.mts"]
+}

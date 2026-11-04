@@ -1,0 +1,207 @@
+/* The banner (feature 008): the app icon's synthwave sunset. The icon, title, nav and add button
+   sit on the dark sky; the scene (sun, horizon glow and neon grid) is a strip along the bottom,
+   below them, so white text never sits on its bright parts. The banner is the same in light and
+   dark mode. On the installed iPhone app the sky runs up behind the status bar. */
+.header {
+  --banner-scene-height: 56px;
+
+  /* On phones the icon, title and button stay on one row whatever the fonts' widths: the title
+     shortens with an ellipsis before the button would wrap. */
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  align-content: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  min-height: 120px;
+  padding: calc(var(--space-3) + env(safe-area-inset-top))
+    max(var(--space-4), env(safe-area-inset-right))
+    calc(var(--banner-scene-height) + var(--space-2)) max(var(--space-4), env(safe-area-inset-left));
+  color: var(--banner-text);
+  background:
+    url('../assets/banner-scene.svg') center bottom / auto var(--banner-scene-height) no-repeat,
+    linear-gradient(
+      to bottom,
+      var(--banner-sky),
+      var(--banner-sky-mid) calc(100% - var(--banner-scene-height)),
+      var(--banner-glow) calc(100% - var(--banner-scene-height) * 0.4)
+    );
+}
+
+.header :focus-visible {
+  outline-color: var(--banner-focus);
+}
+
+.title {
+  min-width: 0;
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.title a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--touch-target);
+  color: inherit;
+  text-decoration: none;
+  text-shadow:
+    0 2px 0 var(--banner-sky),
+    0 0 18px rgb(255 63 216 / 70%);
+}
+
+.icon {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  box-shadow:
+    0 0 0 2px var(--banner-focus),
+    0 0 14px var(--banner-button);
+}
+
+/* The full title where it fits beside the nav and the button; the short one below that. */
+.longTitle,
+.longLabel {
+  display: none;
+}
+
+.longTitle,
+.shortTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.addButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: var(--touch-target);
+  padding: 0 var(--space-3);
+  border-radius: var(--radius);
+  background: var(--banner-button);
+  color: var(--banner-button-text);
+  box-shadow: 0 0 14px rgb(255 63 216 / 80%);
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+/* Phones: the main nav is a bar fixed to the bottom of the screen, above the iPhone's home
+   indicator. */
+.nav {
+  position: fixed;
+  inset: auto 0 0 0;
+  height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+}
+
+.navLink {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--touch-target);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.navLink[aria-current='page'] {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.main {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-4)
+    calc(var(--bottom-nav-height) + env(safe-area-inset-bottom) + var(--space-4));
+}
+
+/* The overview's board uses more of a wide screen than other pages, so its columns stay
+   readable. */
+.main:has([data-board]) {
+  max-width: var(--board-max);
+}
+
+/* Tablet and up: a taller banner, and the nav moves into it. */
+@media (min-width: 640px) {
+  .header {
+    --banner-scene-height: 74px;
+
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+    min-height: 150px;
+    padding-top: calc(var(--space-4) + env(safe-area-inset-top));
+    padding-inline: max(var(--space-6), env(safe-area-inset-left))
+      max(var(--space-6), env(safe-area-inset-right));
+  }
+
+  .title {
+    font-size: 1.5rem;
+  }
+
+  .title a {
+    gap: var(--space-3);
+  }
+
+  .addButton {
+    padding: 0 var(--space-4);
+  }
+
+  .icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 12px;
+  }
+
+  .nav {
+    position: static;
+    height: auto;
+    padding-bottom: 0;
+    border-top: 0;
+    background: none;
+    gap: var(--space-2);
+    margin-right: auto;
+  }
+
+  .navLink {
+    flex: none;
+    padding: 0 var(--space-3);
+    color: var(--banner-text);
+    border-bottom: 3px solid transparent;
+  }
+
+  .navLink[aria-current='page'] {
+    color: var(--banner-text);
+    border-bottom-color: var(--banner-focus);
+  }
+
+  .main {
+    padding-bottom: var(--space-8);
+  }
+}
+
+@media (min-width: 1024px) {
+  .title {
+    font-size: 1.75rem;
+  }
+
+  .longTitle,
+  .longLabel {
+    display: inline;
+  }
+
+  .shortTitle,
+  .shortLabel {
+    display: none;
+  }
+}

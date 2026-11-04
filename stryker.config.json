@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "checkers": ["typescript"],
+  "tsconfigFile": "tsconfig.json",
+  "typescriptChecker": {
+    "prioritizePerformanceOverAccuracy": true
+  },
+  "mutate": [
+    "packages/*/src/**/*.{ts,tsx}",
+    "packages/infra/lib/**/*.ts",
+    "!packages/web/src/main.tsx",
+    "!packages/web/src/sw/sw.ts"
+  ],
+  "coverageAnalysis": "perTest",
+  "timeoutMS": 30000,
+  "thresholds": {
+    "high": 100,
+    "low": 95,
+    "break": 95
+  },
+  "incremental": true,
+  "incrementalFile": "reports/stryker-incremental.json",
+  "reporters": ["clear-text", "progress", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "ignorePatterns": [
+    "coverage",
+    "reports",
+    "playwright-report",
+    "test-results",
+    "**/cdk.out",
+    "**/dist",
+    "**/.tsc"
+  ],
+  "tempDirName": ".stryker-tmp"
+}

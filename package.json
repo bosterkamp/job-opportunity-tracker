@@ -1,0 +1,50 @@
+{
+  "name": "job-opportunities",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Personal job opportunity tracker",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "npm run build -w @jot/shared && npm run build -w @jot/api && npm run build -w @jot/web && npm run build -w @jot/infra",
+    "lint": "eslint . && prettier --check . && node scripts/test-tags.mjs check",
+    "format": "prettier --write .",
+    "typecheck": "tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:affected": "node scripts/test-tags.mjs vitest",
+    "test:mutation": "stryker run",
+    "test:mutation:full": "stryker run --force",
+    "test:e2e": "playwright test --grep-invert @deployed",
+    "test:e2e:affected": "node scripts/test-tags.mjs e2e",
+    "dev": "node scripts/ensure-dynamodb-local.mjs && npm run create-local-table -w @jot/api && concurrently --kill-others -n api,web -c blue,green \"npm run dev -w @jot/api\" \"npm run dev -w @jot/web\""
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "~4.13.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.64.1",
+    "@stryker-mutator/core": "^10.0.0",
+    "@stryker-mutator/typescript-checker": "^10.0.0",
+    "@stryker-mutator/vitest-runner": "^10.0.0",
+    "@types/node": "^24.0.0",
+    "@vitest/coverage-v8": "~4.1.12",
+    "concurrently": "^10.0.6",
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vitest": "~4.1.12"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

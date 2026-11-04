@@ -1,0 +1,62 @@
+name: Deploy
+
+# Deploys to AWS after the CI workflow (ci, e2e, mutation) succeeds for a push to master.
+# Pull requests and feature branches never deploy.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [master]
+
+permissions:
+  id-token: write # GitHub OIDC token, exchanged for the AWS deploy role
+  contents: read
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: deploy
+    # Skipped until the one-time bootstrap has set AWS_DEPLOY_ROLE_ARN (quickstart.md).
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      vars.AWS_DEPLOY_ROLE_ARN != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      BUDGET_EMAIL: ${{ vars.BUDGET_EMAIL }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Deploy exactly the commit CI tested.
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      # Builds the web app and API, then synthesizes the CDK app.
+      - run: npm run build
+      - run: npm run deploy -w @jot/infra -- --outputs-file cdk-outputs.json
+      # Checks the live site without signing in (e2e/deployed-smoke.spec.ts): sign-in redirect,
+      # SPA fallback, security headers, the API's 401, and CORS preflights.
+      - name: Read the site and API URLs from the stack outputs
+        run: |
+          echo "E2E_BASE_URL=$(jq -r '."Jot-WebContent".SiteUrl' packages/infra/cdk-outputs.json)" >> "$GITHUB_ENV"
+          echo "E2E_API_URL=$(jq -r '."Jot-Api".ApiUrl' packages/infra/cdk-outputs.json)" >> "$GITHUB_ENV"
+      - run: npx playwright install --with-deps chromium
+      - name: Smoke test the deployed site
+        run: npx playwright test --grep @deployed --project desktop-chromium
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: deployed-smoke-report
+          path: playwright-report/
+          retention-days: 14

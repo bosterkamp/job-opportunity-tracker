@@ -1,0 +1,263 @@
+name: CI
+
+# Pull requests and master only: a branch push runs nothing until it has a pull request, so
+# each commit is checked once, not twice (once for the push and once for the pull request).
+# A manual run can still check any branch.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # The mutation job reads earlier runs' saved results (artifacts), and which pull request a
+  # master commit came from.
+  actions: read
+  pull-requests: read
+
+# A newer commit cancels the older run for the same pull request (or master), which no longer
+# matters: only the latest commit is merged or deployed. On master, the newer run deploys
+# instead. A manual run is grouped on its own, so a push never cancels it.
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  # Which tests this change needs (scripts/test-tags.mjs). Pull requests run only the tests
+  # tagged with the functionality they touch; a change to common code runs
+  # everything. Every push to master (and a manual run) runs the full suite, with the 80%
+  # coverage gate, before anything deploys (Constitution Principle VII).
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      all: ${{ steps.affected.outputs.all }}
+      unit: ${{ steps.affected.outputs.unit }}
+      e2e: ${{ steps.affected.outputs.e2e }}
+      tags: ${{ steps.affected.outputs.tags }}
+      vitest_filter: ${{ steps.affected.outputs.vitest_filter }}
+      playwright_grep: ${{ steps.affected.outputs.playwright_grep }}
+      mutate_all: ${{ steps.affected.outputs.mutate_all }}
+      mutate: ${{ steps.affected.outputs.mutate }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - id: affected
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" = pull_request ]; then
+            node scripts/test-tags.mjs affected --base "$PR_BASE"
+          else
+            # A push to master, or a manual run.
+            node scripts/test-tags.mjs affected --all
+          fi
+
+  ci:
+    name: ci
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Includes the check that every test is tagged.
+      - run: npm run lint
+      - run: npm run typecheck
+      # Fails if lines, branches, functions, or statements drop below 80% (Principle VI).
+      - name: All tests, with the 80% coverage gate
+        if: needs.changes.outputs.all == 'true'
+        run: npm run test:coverage
+      # Coverage is reported, not gated: a subset of the tests can't cover the whole codebase.
+      - name: 'Affected tests: ${{ needs.changes.outputs.tags }}'
+        if: needs.changes.outputs.all != 'true' && needs.changes.outputs.unit == 'true'
+        env:
+          FILTER: ${{ needs.changes.outputs.vitest_filter }}
+        run: >
+          npx vitest run --coverage --tags-filter "$FILTER"
+          --coverage.thresholds.lines=0 --coverage.thresholds.branches=0
+          --coverage.thresholds.functions=0 --coverage.thresholds.statements=0
+      - run: npm run build
+
+  mutation:
+    name: mutation
+    needs: changes
+    runs-on: ubuntu-latest
+    # Testing every mutant from scratch takes about an hour on a GitHub runner; reusing saved
+    # results (below) usually takes minutes.
+    timeout-minutes: 90
+    steps:
+      - name: No tested code changed
+        if: needs.changes.outputs.unit != 'true'
+        run: echo "Nothing to mutation test."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.unit == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.unit == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        if: needs.changes.outputs.unit == 'true'
+      # Incremental mode reuses a mutant's earlier result while neither its code nor the tests
+      # that killed it have changed. A pull request uses its branch's cache (head_ref), not one
+      # keyed by "<n>/merge".
+      - uses: actions/cache@v6
+        if: needs.changes.outputs.unit == 'true'
+        with:
+          path: reports/stryker-incremental.json
+          key: stryker-${{ github.head_ref || github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            stryker-${{ github.head_ref || github.ref_name }}-
+            stryker-master-
+      # Caches expire after 7 days unused, master can't read a pull request's cache, and a
+      # failed run saves no cache, so every run also keeps its results as an artifact (below).
+      # A push to master takes the results of the pull request it merged, which tested this same
+      # code; a pull request takes its own last run's, even a failed one (a result is reused
+      # only while its code and tests are unchanged, so any run's results are safe to start
+      # from); anything else without a cache takes master's latest. With none, Stryker starts
+      # from scratch.
+      - name: Results from earlier runs
+        if: needs.changes.outputs.unit == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT: ${{ github.event_name }}
+          SHA: ${{ github.sha }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          download() {
+            rm -rf "$RUNNER_TEMP/results" &&
+              gh run download "$1" --repo "$REPO" -n stryker-incremental -D "$RUNNER_TEMP/results" &&
+              mkdir -p reports &&
+              cp "$RUNNER_TEMP/results/stryker-incremental.json" reports/ &&
+              echo "Reusing the results of run $1."
+          }
+          latest() {
+            gh run list --repo "$REPO" --workflow ci.yml --limit 1               --json databaseId --jq '.[0].databaseId // empty' "$@"
+          }
+          if [ "$EVENT" = push ]; then
+            pr=$(gh api "repos/$REPO/commits/$SHA/pulls" --jq '.[0].number // empty' || true)
+            if [ -n "$pr" ]; then
+              branch=$(gh pr view "$pr" --repo "$REPO" --json headRefName --jq .headRefName || true)
+              run=$(latest --status success --event pull_request --branch "$branch" || true)
+              if [ -n "$run" ] && download "$run"; then exit 0; fi
+            fi
+          fi
+          if [ "$EVENT" = pull_request ]; then
+            run=$(latest --status completed --event pull_request --branch "$HEAD_REF" || true)
+            if [ -n "$run" ] && download "$run"; then exit 0; fi
+          fi
+          if [ -f reports/stryker-incremental.json ]; then
+            echo "Using the cached results."
+            exit 0
+          fi
+          run=$(latest --status success --event push --branch master || true)
+          if [ -n "$run" ] && download "$run"; then exit 0; fi
+          echo "No earlier results: testing every mutant from scratch."
+      # Fails below a 95% mutation score: thresholds.break is 95 (Principle VI). A pull request
+      # tests the mutated files it changed, and those whose tests it changed, static mutants
+      # included (scripts/test-tags.mjs mutate); a change that could affect any test tests every
+      # mutant. Every push to master, and a manual run, covers every mutant before anything
+      # deploys (Principle VII), reusing the results that still hold.
+      - name: Mutation testing, the changed files
+        if: >-
+          needs.changes.outputs.unit == 'true' && github.event_name == 'pull_request' &&
+          needs.changes.outputs.mutate_all != 'true' && needs.changes.outputs.mutate != ''
+        env:
+          MUTATE: ${{ needs.changes.outputs.mutate }}
+        run: npm run test:mutation -- --mutate "$MUTATE"
+      - name: No mutated code or its tests changed
+        if: >-
+          needs.changes.outputs.unit == 'true' && github.event_name == 'pull_request' &&
+          needs.changes.outputs.mutate_all != 'true' && needs.changes.outputs.mutate == ''
+        run: echo "Nothing to mutation test."
+      - name: Mutation testing, every mutant
+        if: >-
+          needs.changes.outputs.unit == 'true' && (github.event_name != 'pull_request' ||
+          needs.changes.outputs.mutate_all == 'true')
+        run: npm run test:mutation
+      - uses: actions/upload-artifact@v7
+        if: always() && needs.changes.outputs.unit == 'true'
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          retention-days: 14
+      # The results for later runs to reuse: 90 days from master, which every pull request and
+      # the next release start from; 14 days from a pull request, which its merge uses.
+      - uses: actions/upload-artifact@v7
+        if: always() && needs.changes.outputs.unit == 'true'
+        with:
+          name: stryker-incremental
+          path: reports/stryker-incremental.json
+          if-no-files-found: ignore
+          retention-days: ${{ github.event_name == 'pull_request' && 14 || 90 }}
+
+  e2e:
+    name: e2e
+    needs: changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: No end-to-end tests affected
+        if: needs.changes.outputs.e2e != 'true'
+        run: echo "Nothing to run end to end."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.e2e == 'true'
+      - uses: actions/setup-node@v7
+        if: needs.changes.outputs.e2e == 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+        if: needs.changes.outputs.e2e == 'true'
+      - run: npx playwright install --with-deps chromium webkit
+        if: needs.changes.outputs.e2e == 'true'
+      - name: All end-to-end tests
+        if: needs.changes.outputs.all == 'true'
+        run: npm run test:e2e
+      - name: 'Affected end-to-end tests: ${{ needs.changes.outputs.playwright_grep }}'
+        if: needs.changes.outputs.all != 'true' && needs.changes.outputs.e2e == 'true'
+        env:
+          GREP: ${{ needs.changes.outputs.playwright_grep }}
+        # A feature may have no end-to-end tests yet; that isn't a failure.
+        run: npm run test:e2e -- --grep "$GREP" --pass-with-no-tests
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 14
+
+  # No secrets in the change (API keys, AWS credentials, tokens, private keys). A pull request
+  # scans only its own commits, which takes seconds; master and a manual run scan the whole
+  # history. The daily Secret scan workflow scans the whole history too. Findings are redacted.
+  secrets:
+    name: secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Scan for secrets with gitleaks
+        env:
+          RANGE: >-
+            ${{ github.event_name == 'pull_request' &&
+            format('{0}..{1}', github.event.pull_request.base.sha, github.event.pull_request.head.sha)
+            || '' }}
+        run: >-
+          docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0
+          git /repo --redact --no-banner --verbose
+          ${RANGE:+--log-opts="$RANGE"}

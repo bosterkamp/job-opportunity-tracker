@@ -1,0 +1,16 @@
+services:
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: jot-dynamodb-local
+    # Persist local data between restarts. The image runs as a non-root user that can't
+    # write to a mounted volume, so run as root.
+    user: root
+    working_dir: /home/dynamodblocal
+    command: -jar DynamoDBLocal.jar -sharedDb -dbPath ./data
+    ports:
+      - '8000:8000'
+    volumes:
+      - dynamodb-data:/home/dynamodblocal/data
+
+volumes:
+  dynamodb-data:

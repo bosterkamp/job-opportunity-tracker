@@ -1,0 +1,44 @@
+<!doctype html>
+<html>
+  <head>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          { "@type": "Organization", "name": "Umbrella" },
+          {
+            "@type": ["JobPosting"],
+            "title": "Data Analyst",
+            "hiringOrganization": "Umbrella",
+            "jobLocation": [
+              {
+                "@type": "Place",
+                "address": {
+                  "addressLocality": "Boston",
+                  "addressRegion": "MA",
+                  "addressCountry": { "@type": "Country", "name": "US" }
+                }
+              },
+              {
+                "@type": "Place",
+                "address": {
+                  "addressLocality": "Boston",
+                  "addressRegion": "MA",
+                  "addressCountry": { "@type": "Country", "name": "US" }
+                }
+              },
+              { "@type": "Place", "address": { "addressLocality": "Remote" } }
+            ],
+            "baseSalary": {
+              "@type": "MonetaryAmount",
+              "currency": "USD",
+              "value": { "@type": "QuantitativeValue", "value": 45, "unitText": "HOUR" }
+            },
+            "description": "&lt;p&gt;Analyze data.&lt;/p&gt;"
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body></body>
+</html>
