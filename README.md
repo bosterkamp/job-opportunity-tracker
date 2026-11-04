@@ -1,5 +1,61 @@
 # Job Opportunity Tracker
 
+**Keep your whole job search in one place: every opening, every application, every interview,
+and every person helping you along the way. Ask Claude where things stand.**
+
+## Why use this?
+
+Looking for a job is a job. Whether you were laid off and need the next role soon, or you're
+employed and quietly looking for something better, the search gets messy fast:
+
+- Twenty open tabs, a spreadsheet you stopped updating, and a pile of "thanks for applying"
+  emails.
+- A recruiter calls back and you can't remember which role it was, what the salary range was,
+  or when you applied.
+- A posting you meant to apply to closed last Tuesday.
+- A friend introduced you to someone useful three weeks ago, and you've lost track of what you
+  talked about.
+
+This app gives that chaos a shape. Each opportunity moves across a board, from **Considering**
+to **Applied**, **Contacted**, **Interviewing** and **Offer**, and every step is dated and kept.
+You can see at a glance what needs a follow-up, what's closing soon, and what pays enough to be
+worth your time.
+
+### Who it's for
+
+- **You need a job now.** Laid off, contract ended, just graduated. Volume matters, and so does
+  not dropping the ball. Add a role in seconds by pasting its link, and see every follow-up
+  that's due.
+- **You're looking while employed.** You have little time and no room for mistakes. Keep it
+  private, check it from your phone between meetings, and pick up exactly where you left off.
+- **You're changing careers.** The people you meet matter as much as the postings.
+  **Networking leads** keep your contacts and notes from each conversation, linked to the roles
+  they led to.
+
+### What makes it different
+
+- **It's yours.** It runs in your own AWS account, behind your own sign-in. No ads, no
+  recruiter marketplace, and nobody selling your data or your job hunt.
+- **It costs next to nothing.** For one person it uses so little that the AWS bill has stayed
+  at a few cents a month, and the free tier or credits often cover it.
+- **Claude can help.** Connect it to Claude and ask "What's waiting on a follow-up?", "Add this
+  posting", or "Move Acme to Interviewing and log today's call". Claude reads and updates your
+  tracker, but deleting stays in your hands, in the web app.
+- **It works on your phone.** Install it to your home screen; it looks and feels like an app.
+- **Fast capture.** A company and a job title are all it needs. Paste a posting's link and
+  **Fill from link** brings in the details from most company job sites (not LinkedIn), then
+  add more when you have them.
+
+### Get your own
+
+Your search deserves better than a forgotten spreadsheet. Fork this repo, follow
+[Deployment](#deployment) to put it in your AWS account, and [create your sign-in
+user](#creating-your-sign-in-user). Or try it on your computer first with
+[Running locally](#running-locally): no AWS account needed, just Docker. If it helps you land
+something, a star on the repo would be nice to see. Good luck out there.
+
+## What it does
+
 A personal, responsive web app for tracking job opportunities through a hiring pipeline:
 Considering → Applied → Contacted → Interviewing → Offer, through to an outcome. Every stage
 change is kept in the opportunity's history.
