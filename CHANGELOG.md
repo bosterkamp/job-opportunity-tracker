@@ -1,8 +1,9 @@
 # Release notes
 
-Changes copied over from the private repo, newest first. Each update is a single commit.
+Changes copied over from the private repo, newest first. Each update is a single commit and a
+release.
 
-## 2026-11-06
+## v1.0.1 (2026-11-06)
 
 ### Fixed
 
@@ -11,6 +12,12 @@ Changes copied over from the private repo, newest first. Each update is a single
   board, on desktop and on phones. A new end-to-end test checks that nothing on another card
   shows through.
 
-## 2026-11-04
+### Added
+
+- These release notes, also published on the Releases page.
+- README badges: CI and secret-scan status, code coverage, mutation score, latest release,
+  license, and the main technologies.
+
+## v1.0.0 (2026-11-04)
 
 - First public release.
