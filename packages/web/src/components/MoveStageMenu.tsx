@@ -1,5 +1,6 @@
 import { OPEN_STAGES, OUTCOME_STAGES, stageDescription, stageLabel, type Stage } from '@jot/shared';
 import { useId, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { createPortal } from 'react-dom';
 import dialog from './Dialog.module.css';
 import { keepFocusInside } from './focusTrap';
 import styles from './MoveStageMenu.module.css';
@@ -58,16 +59,19 @@ export function MoveStageMenu({
       >
         Move to…
       </button>
-      {/* Mounted only while open, so each opening starts with a fresh form. */}
-      {open && (
-        <MovePanel
-          currentStage={currentStage}
-          onMove={onMove}
-          label={label}
-          now={now}
-          onClose={close}
-        />
-      )}
+      {/* Mounted only while open, so each opening starts with a fresh form. Rendered into the
+          body, so it sits above every card rather than inside this card's stacking layer. */}
+      {open &&
+        createPortal(
+          <MovePanel
+            currentStage={currentStage}
+            onMove={onMove}
+            label={label}
+            now={now}
+            onClose={close}
+          />,
+          document.body,
+        )}
     </div>
   );
 }

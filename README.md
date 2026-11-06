@@ -8,6 +8,8 @@ and every person helping you along the way. Ask Claude where things stand.**
 > arrive in batches, each as a single commit, rather than as day-to-day history. Issues and
 > suggestions are welcome; changes from pull requests are carried over by hand into the private
 > repo and come back in a later update.
+>
+> What changed in each update is in [CHANGELOG.md](CHANGELOG.md).
 
 ![The overview: every open opportunity by stage, with salary, interest, interviews, follow-ups and closing dates](docs/screenshots/overview-desktop.png)
 
