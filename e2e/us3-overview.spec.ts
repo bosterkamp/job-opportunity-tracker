@@ -57,6 +57,43 @@ test.describe('Overview (US3)', { tag: '@overview' }, () => {
     },
   );
 
+  test(
+    'an open "Move to…" dialog covers the other cards\' buttons',
+    { tag: '@responsive' },
+    async ({ page, request }) => {
+      await seedBoard(request);
+      await page.goto('/');
+      await expect(cards(page).filter({ hasText: 'Acme' })).toBeVisible();
+      // Phones show one stage at a time.
+      const tab = page.getByRole('tab', { name: 'Applied (2)' });
+      if (await tab.isVisible()) {
+        await tab.click();
+      }
+      const applied = cards(page).filter({ hasText: /Globex|Initech/ });
+      await expect(applied).toHaveCount(2);
+
+      await applied
+        .first()
+        .getByRole('button', { name: /^Move .* to another stage$/ })
+        .click();
+      await expect(page.getByRole('dialog')).toBeVisible();
+
+      // Whatever is drawn over the other card's button is the dialog or its dimmed backdrop.
+      const other = applied.last().getByRole('button', { name: /^Move .* to another stage$/ });
+      const box = await other.boundingBox();
+      expect(box).toBeTruthy();
+      if (!box) return;
+      const onTop = await page.evaluate(
+        ([x, y]) => {
+          const hit = document.elementFromPoint(x as number, y as number);
+          return hit?.closest('[role="dialog"]') ? 'dialog' : (hit?.tagName ?? 'nothing');
+        },
+        [box.x + box.width / 2, box.y + box.height / 2],
+      );
+      expect(onTop).not.toBe('BUTTON');
+    },
+  );
+
   test('each card shows company, title, stars, and the time since the last change', async ({
     page,
     request,
