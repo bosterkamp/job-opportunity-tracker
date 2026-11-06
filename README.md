@@ -1,5 +1,20 @@
 # Job Opportunity Tracker
 
+[![CI](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml)
+[![Secret scan](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml)
+[![Coverage: 99.9% of lines](https://img.shields.io/badge/coverage-99.9%25-brightgreen)](#continuous-integration)
+[![Mutation score: 99.9%](https://img.shields.io/badge/mutation%20score-99.9%25-brightgreen)](#continuous-integration)
+[![Latest release](https://img.shields.io/github/v/release/bosterkamp/job-opportunity-tracker)](https://github.com/bosterkamp/job-opportunity-tracker/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![Node.js](https://img.shields.io/badge/Node.js-24%2B-5FA04E?logo=nodedotjs&logoColor=white)
+![AWS CDK](https://img.shields.io/badge/AWS-CDK%20%C2%B7%20Lambda%20%C2%B7%20DynamoDB-FF9900?logo=amazonwebservices&logoColor=white)
+![MCP server](https://img.shields.io/badge/MCP-server%20for%20Claude-D97757?logo=anthropic&logoColor=white)
+![Installable PWA](https://img.shields.io/badge/PWA-installable-5A0FC8?logo=pwa&logoColor=white)
+![Tested on Chrome and iPhone Safari](https://img.shields.io/badge/e2e-Chrome%20%C2%B7%20iPhone%20Safari-2EAD33?logo=playwright&logoColor=white)
+
 **Keep your whole job search in one place: every opening, every application, every interview,
 and every person helping you along the way. Ask Claude where things stand.**
 
@@ -9,7 +24,9 @@ and every person helping you along the way. Ask Claude where things stand.**
 > suggestions are welcome; changes from pull requests are carried over by hand into the private
 > repo and come back in a later update.
 >
-> What changed in each update is in [CHANGELOG.md](CHANGELOG.md).
+> What changed in each update is in [CHANGELOG.md](CHANGELOG.md) and on the
+> [Releases](https://github.com/bosterkamp/job-opportunity-tracker/releases) page. The coverage and mutation-score badges show the numbers from
+> the latest update.
 
 ![The overview: every open opportunity by stage, with salary, interest, interviews, follow-ups and closing dates](docs/screenshots/overview-desktop.png)
 
