@@ -63,5 +63,20 @@ export function leadNoteGsi1(leadId: string, noteId: string) {
   return { GSI1PK: LEADS_PARTITION, GSI1SK: `${leadId}#${NOTE_PREFIX}${noteId}` };
 }
 
+// A saved change to an opportunity's offer (feature 013), in its partition, zero-padded so
+// the entries sort in order. They sort apart from stage changes, which start CHANGE#.
+export const OFFER_CHANGE_PREFIX = 'OFFERCHANGE#';
+
+export function offerChangeKey(id: string, seq: number) {
+  return { PK: opportunityPk(id), SK: `${OFFER_CHANGE_PREFIX}${String(seq).padStart(6, '0')}` };
+}
+
+export const isOfferChangeItem = (item: { SK?: unknown }) =>
+  typeof item.SK === 'string' && item.SK.startsWith(OFFER_CHANGE_PREFIX);
+
+// The custom fields every offer shares (feature 013): one item.
+export const SETTINGS_PK = 'SETTINGS';
+export const OFFER_FIELDS_SK = 'OFFER_FIELDS';
+
 export const isLeadNoteItem = (item: { SK?: unknown }) =>
   typeof item.SK === 'string' && item.SK.startsWith(NOTE_PREFIX);

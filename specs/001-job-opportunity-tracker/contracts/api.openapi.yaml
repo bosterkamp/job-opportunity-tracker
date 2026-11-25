@@ -195,6 +195,150 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
 
+  # Feature 013: an opportunity's offer, its scores, and the custom fields every offer shares.
+  # None of them changes the stage, status, lastStageChangeAt, or changeCount.
+  /opportunities/{id}/offer:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: >
+        Record the offer, or change it: only the details given; null or blank clears one. Each
+        save that changes something adds an entry to offerHistory; one that changes nothing
+        adds none. Values of removed custom fields are dropped.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OfferInput' }
+      responses:
+        '200':
+          description: The opportunity with its offer, scores and history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400':
+          description: A value breaks its rule, or "Unknown custom field" on `custom.<id>`
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409':
+          description: >
+            Another save got there first: "This opportunity changed since you loaded it. Reload
+            and try again."
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      summary: Remove the offer, its scores and its whole history (needs X-Confirm-Delete)
+      parameters:
+        - { name: X-Confirm-Delete, in: header, required: true, schema: { type: string, enum: ['true'] } }
+      responses:
+        '200':
+          description: The opportunity, with no offer
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+        '404':
+          description: No such opportunity, or "No offer to remove"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: The offer changed since it was read
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /opportunities/{id}/offer/scores:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Set scores one by one (null clears one); the others stay. Adds no history entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [scores]
+              additionalProperties: false
+              properties:
+                scores:
+                  type: object
+                  description: A detail's name, or custom:<fieldId>, to 0–5 or null
+                  additionalProperties: { type: [integer, 'null'], minimum: 0, maximum: 5 }
+      responses:
+        '200':
+          description: The opportunity with its scores
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OpportunityWithHistory' }
+        '400':
+          description: >
+            "Score with a whole number from 0 to 5", "Unknown detail to score", "Unknown custom
+            field", or "Add the offer before scoring it"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /offer-fields:
+    get:
+      summary: The custom fields every offer shares, in display order
+      responses:
+        '200':
+          description: Empty lists and version 0 before the first field
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferFields' }
+    patch:
+      summary: >
+        Replace the list: add (no id), rename, reorder, or remove. Dropping a field needs
+        X-Confirm-Delete; it moves to `removed` with its last name.
+      parameters:
+        - { name: X-Confirm-Delete, in: header, required: false, schema: { type: string, enum: ['true'] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fields, expectedVersion]
+              additionalProperties: false
+              properties:
+                fields:
+                  type: array
+                  maxItems: 20
+                  items:
+                    type: object
+                    required: [name]
+                    additionalProperties: false
+                    properties:
+                      id: { type: string }
+                      name: { type: string, minLength: 1, maxLength: 60 }
+                expectedVersion: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: The new list
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferFields' }
+        '400':
+          description: >
+            "Name the field", the length limit, "There's already a field called {name}", "You
+            can have at most 20 custom fields", "Unknown custom field", or the missing confirm
+            header
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: The list changed since it was read
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
   # Networking leads (feature 010): a name, an email and a phone, nothing else.
   /leads:
     get:
@@ -442,7 +586,23 @@ components:
               type: integer
               minimum: 0
               maximum: 6
-              description: Feature 005. How many interviews are logged; missing means 0.
+              description: >
+                Feature 005. How many interviews are logged, upcoming ones included (feature
+                012); missing means 0.
+            interviewTimes:
+              type: array
+              items: { type: string, format: date-time }
+              description: >
+                Feature 012. When each interview is, sorted, so the board can tell held from
+                upcoming. Missing on opportunities stored before feature 012 until their first
+                interview change; their interviews have all happened.
+            offer: { $ref: '#/components/schemas/Offer' }
+            offerScores:
+              type: object
+              description: >
+                Feature 013. Present whenever offer is: a detail's name, or custom:<fieldId>, to
+                the owner's score, 0 (not offered) to 5 (best).
+              additionalProperties: { type: integer, minimum: 0, maximum: 5 }
 
     StageChange:
       type: object
@@ -468,6 +628,84 @@ components:
               type: array
               description: Feature 005. Sorted by heldAt, then recordedAt
               items: { $ref: '#/components/schemas/Interview' }
+            offerHistory:
+              type: array
+              description: Feature 013. Each saved change to the offer, oldest first; only when it has one
+              items: { $ref: '#/components/schemas/OfferChange' }
+
+    # Feature 013: an offer's details. Every one optional; missing means not given.
+    OfferDetails:
+      type: object
+      properties:
+        baseSalary: { type: integer, minimum: 0, maximum: 10000000 }
+        bonusPercent: { type: number, minimum: 0, maximum: 100, multipleOf: 0.1 }
+        signOnBonus: { type: integer, minimum: 0, maximum: 10000000 }
+        equity: { type: string, maxLength: 500 }
+        retirement: { type: string, maxLength: 500, description: The 401k contribution }
+        insurance: { type: string, maxLength: 500 }
+        location: { type: string, maxLength: 500 }
+        workArrangement: { type: string, enum: [ONSITE, HYBRID, REMOTE] }
+        title: { type: string, maxLength: 200 }
+        role: { type: string, maxLength: 500 }
+        pto: { type: string, maxLength: 500 }
+        leadership: { type: string, maxLength: 500 }
+        culture: { type: string, maxLength: 500 }
+        startDate: { type: string, format: date }
+        respondBy: { type: string, format: date }
+        custom:
+          type: object
+          description: A custom field's id to its value
+          additionalProperties: { type: string, maxLength: 500 }
+
+    Offer:
+      allOf:
+        - $ref: '#/components/schemas/OfferDetails'
+        - type: object
+          required: [createdAt, updatedAt]
+          properties:
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+
+    OfferInput:
+      description: Any details; null or blank clears one, and in custom null clears a value
+      allOf:
+        - $ref: '#/components/schemas/OfferDetails'
+
+    OfferChange:
+      type: object
+      required: [seq, at, kind, changes]
+      properties:
+        seq: { type: integer }
+        at: { type: string, format: date-time }
+        kind: { type: string, enum: [RECORDED, CHANGED] }
+        changes:
+          type: array
+          items:
+            type: object
+            required: [field, from, to]
+            properties:
+              field: { type: string, description: A detail's name, or custom:<fieldId> }
+              from: { type: [string, number, 'null'] }
+              to: { type: [string, number, 'null'] }
+        via: { type: string, enum: [CLAUDE] }
+
+    OfferField:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+
+    OfferFields:
+      type: object
+      required: [fields, removed, version]
+      properties:
+        fields: { type: array, items: { $ref: '#/components/schemas/OfferField' } }
+        removed:
+          type: array
+          description: Removed fields with their last name, for the history
+          items: { $ref: '#/components/schemas/OfferField' }
+        version: { type: integer, minimum: 0 }
 
     Interview:
       type: object
@@ -478,18 +716,67 @@ components:
         note: { type: [string, 'null'], maxLength: 200 }
         recordedAt: { type: string, format: date-time }
         via: { type: string, enum: [CLAUDE], description: Logged or last changed through Claude }
+        kind: { $ref: '#/components/schemas/InterviewKind' }
+        panel: { type: boolean }
+        format: { $ref: '#/components/schemas/InterviewFormat' }
+        outcome: { $ref: '#/components/schemas/InterviewOutcome' }
+        nextSteps: { type: string, maxLength: 500 }
+        interviewers:
+          type: array
+          maxItems: 10
+          items: { $ref: '#/components/schemas/Interviewer' }
+
+    # Feature 012: an interview's details. Missing means not set.
+    InterviewKind:
+      type: string
+      enum: [HR, HIRING_MANAGER, BUSINESS, ENGINEERING, OTHER]
+      description: HR is "HR / talent advisor"
+    InterviewFormat: { type: string, enum: [PHONE, VIDEO, IN_PERSON] }
+    InterviewOutcome:
+      type: string
+      enum: [WENT_WELL, NOT_SURE, WENT_BADLY]
+      description: How it went. Kept whatever the date; the web app shows it once it's past
+
+    Interviewer:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, maxLength: 100, description: '"Name is required"' }
+        title: { type: string, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 254 }
+        phone: { type: string, maxLength: 50 }
+        linkedin:
+          type: string
+          maxLength: 300
+          description: >
+            An https address on linkedin.com or a subdomain, with a path starting /in/.
+            https:// is added when left out. "Enter a LinkedIn profile address"
 
     InterviewInput:
       type: object
       additionalProperties: false
+      description: >
+        On a change, null (or a blank text, or an empty list of interviewers) clears a field,
+        and interviewers replaces the whole list.
       properties:
         heldAt:
           type: string
           format: date-time
           description: >
-            Defaults to now when adding. Not more than 60 seconds in the future, and not before
-            the opportunity's createdAt.
+            Defaults to now when adding. At most a year ahead (feature 012), and not before the
+            opportunity's createdAt.
         note: { type: [string, 'null'], maxLength: 200 }
+        kind: { oneOf: [{ $ref: '#/components/schemas/InterviewKind' }, { type: 'null' }] }
+        panel: { type: [boolean, 'null'] }
+        format: { oneOf: [{ $ref: '#/components/schemas/InterviewFormat' }, { type: 'null' }] }
+        outcome: { oneOf: [{ $ref: '#/components/schemas/InterviewOutcome' }, { type: 'null' }] }
+        nextSteps: { type: [string, 'null'], maxLength: 500 }
+        interviewers:
+          type: [array, 'null']
+          maxItems: 10
+          items: { $ref: '#/components/schemas/Interviewer' }
+          description: '"An interview can have at most 10 interviewers"'
 
     LeadInput:
       type: object

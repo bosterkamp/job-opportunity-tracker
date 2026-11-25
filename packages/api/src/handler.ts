@@ -4,17 +4,21 @@ import { loadConfig, type ApiConfig } from './config.js';
 import { json, type ApiResult } from './http.js';
 import { createDocumentClient } from './repo/client.js';
 import { createLeadRepo, type LeadRepo } from './repo/leadRepo.js';
+import { createOfferFieldsRepo, type OfferFieldsRepo } from './repo/offerFieldsRepo.js';
 import { createOpportunityRepo, type OpportunityRepo } from './repo/opportunityRepo.js';
 import { createRouter, type ApiEvent, type Route } from './router.js';
 import { opportunityRoutes } from './routes/opportunities.js';
 import { interviewRoutes } from './routes/interviews.js';
 import { leadRoutes } from './routes/leads.js';
+import { offerRoutes } from './routes/offers.js';
 import { stageChangeRoutes } from './routes/stageChanges.js';
 
 export interface HandlerDeps {
   repo: OpportunityRepo;
   // Networking leads (feature 010).
   leadRepo: LeadRepo;
+  // The custom fields offers share (feature 013).
+  offerFieldsRepo: OfferFieldsRepo;
   newId: () => string;
   now: () => Date;
   // Marks changes made through Claude (feature 003). The web API never sets it.
@@ -26,6 +30,7 @@ export function defaultDeps(config: ApiConfig): HandlerDeps {
   return {
     repo: createOpportunityRepo(client, config.tableName),
     leadRepo: createLeadRepo(client, config.tableName),
+    offerFieldsRepo: createOfferFieldsRepo(client, config.tableName),
     newId: ulid,
     now: () => new Date(),
   };
@@ -42,6 +47,7 @@ export function createRoutes(deps: HandlerDeps): Route[] {
     ...stageChangeRoutes(deps),
     ...interviewRoutes(deps),
     ...leadRoutes(deps),
+    ...offerRoutes(deps),
   ];
 }
 

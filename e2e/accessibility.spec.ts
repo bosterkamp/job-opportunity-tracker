@@ -1,6 +1,15 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Locator, Page } from '@playwright/test';
-import { expect, openOpportunity, seedInStage, test } from './fixtures';
+import {
+  addInterview,
+  addOffer,
+  API_URL,
+  expect,
+  openOpportunity,
+  scoreOffer,
+  seedInStage,
+  test,
+} from './fixtures';
 
 // Accessibility checks with axe (WCAG 2.2 A and AA, including color contrast and target size)
 // on every page and dialog, in light and dark mode. Each block is tagged with the feature
@@ -156,6 +165,96 @@ test.describe('Accessibility', () => {
 
       await expectFocusTrapped(page, page.getByRole('alertdialog'));
     });
+  });
+
+  test.describe('interviews', { tag: '@interview' }, () => {
+    test(
+      "the Interviews section, the add page, and an interview's page",
+      { tag: '@responsive' },
+      async ({ page, request }) => {
+        const { id } = await seedInStage(
+          request,
+          {
+            company: 'Acme',
+            title: 'Engineer',
+            createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          'CONSIDERING',
+        );
+        await addInterview(request, id, {
+          heldAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+          kind: 'HIRING_MANAGER',
+          panel: true,
+          format: 'VIDEO',
+          outcome: 'WENT_WELL',
+          nextSteps: 'Decision by Friday',
+          interviewers: [
+            { name: 'Priya Shah', title: 'Manager', linkedin: 'linkedin.com/in/priya' },
+          ],
+        });
+        await addInterview(request, id, {
+          heldAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+        });
+        await openOpportunity(page, 'Acme');
+        await expect(page.getByRole('region', { name: 'Interviews' })).toBeVisible();
+        await expectNoViolations(page);
+
+        await page.getByRole('link', { name: 'Add interview' }).click();
+        await page.getByRole('button', { name: 'Add interviewer' }).click();
+        await expectNoViolations(page);
+
+        await page.goBack();
+        await page.getByRole('list', { name: 'Past interviews' }).getByRole('link').click();
+        await expect(page.getByRole('heading', { name: 'Hiring manager interview' })).toBeVisible();
+        await expectNoViolations(page);
+
+        await page.getByRole('button', { name: 'Edit interview' }).click();
+        await expectNoViolations(page);
+      },
+    );
+  });
+
+  test.describe('offers', { tag: '@offer' }, () => {
+    test(
+      'the Offer section and its history, the offer page, Offers, and the comparison',
+      { tag: '@responsive' },
+      async ({ page, request }) => {
+        const fields = await request.patch(`${API_URL}/offer-fields`, {
+          data: { fields: [{ name: 'Commute' }], expectedVersion: 0 },
+        });
+        expect(fields.status()).toBe(200);
+        const commute = ((await fields.json()) as { fields: { id: string }[] }).fields[0]?.id;
+        const acme = await seedInStage(request, { company: 'Acme', title: 'Engineer' }, 'OFFER');
+        const bolt = await seedInStage(request, { company: 'Bolt', title: 'Lead' }, 'OFFER');
+        await addOffer(request, acme.id, {
+          baseSalary: 160000,
+          custom: { [commute as string]: '20 min' },
+        });
+        await addOffer(request, acme.id, { baseSalary: 165000, pto: '20 days' });
+        await addOffer(request, bolt.id, { baseSalary: 170000 });
+        // Every score, so axe checks each tint against its text.
+        await scoreOffer(request, acme.id, { baseSalary: 0, pto: 1, equity: 2, bonusPercent: 3 });
+        await scoreOffer(request, bolt.id, { baseSalary: 4, pto: 5 });
+
+        await page.goto(`/opportunities/${acme.id}`);
+        await expect(page.getByRole('list', { name: 'Offer history' })).toBeVisible();
+        await expectNoViolations(page);
+
+        await page.getByRole('link', { name: 'Edit offer' }).click();
+        await expect(page.getByLabel('Commute')).toBeVisible();
+        await expectNoViolations(page);
+
+        await page.goto('/offers');
+        await page.getByRole('checkbox', { name: 'Compare Acme, Engineer' }).check();
+        await page.getByRole('checkbox', { name: 'Compare Bolt, Lead' }).check();
+        await expect(page.getByRole('list', { name: 'Custom fields' })).toBeVisible();
+        await expectNoViolations(page);
+
+        await page.getByRole('link', { name: 'Compare 2' }).click();
+        await expect(page.getByRole('table')).toBeVisible();
+        await expectNoViolations(page);
+      },
+    );
   });
 
   test.describe('filling from a link', { tag: '@import' }, () => {

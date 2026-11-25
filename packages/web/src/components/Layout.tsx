@@ -12,6 +12,8 @@ const NAV_ITEMS: NavItem[] = [
   // Stryker disable next-line StringLiteral: Layout is the root route, so '' also resolves to '/'
   { to: '/', label: 'Overview' },
   { to: '/leads', label: 'Networking leads', short: 'Leads' },
+  // Before the archive (feature 013).
+  { to: '/offers', label: 'Offers' },
   // Last, on desktop and phones (feature 011).
   { to: '/archive', label: 'Archive' },
 ];

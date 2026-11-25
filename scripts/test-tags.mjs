@@ -29,7 +29,12 @@ export const TAGS = [
   { name: 'edit', description: 'Editing, deleting, duplicate warnings, follow-up flags (US4)' },
   { name: 'import', description: 'Filling the add form from a job posting link (feature 002)' },
   { name: 'mcp', description: 'Using the tracker from Claude: the MCP server (feature 003)' },
-  { name: 'interview', description: 'Logging interviews and the interview count (feature 005)' },
+  {
+    name: 'interview',
+    description:
+      'Interviews: logging them with their details and interviewers, upcoming ones, their ' +
+      'pages, and the count (features 005 and 012)',
+  },
   {
     name: 'installable',
     description: 'Installing the app on a phone, offline open, and updates (feature 006)',
@@ -46,6 +51,12 @@ export const TAGS = [
     description:
       "Networking leads: the page, their notes, linking opportunities to them, and Claude's " +
       'lead tools (features 010–011)',
+  },
+  {
+    name: 'offer',
+    description:
+      'Offers: their details and history, the Offers page, comparing and scoring them, custom ' +
+      'fields, and respond-by dates (feature 013)',
   },
   { name: 'infra', description: 'The AWS CDK stacks and the deploy workflow' },
 ];
@@ -64,6 +75,7 @@ const E2E_FEATURES = [
   'theme',
   'deadline',
   'leads',
+  'offer',
 ];
 // Playwright tags that say how or where a test runs, not what it checks.
 const PLAYWRIGHT_RUN_TAGS = new Set(['responsive', 'deployed']);
@@ -83,6 +95,7 @@ export const SOURCE_TAGS = [
   ['packages/shared/src/dateAdded.ts', ['capture', 'edit', 'mcp', 'interview']],
   ['packages/shared/src/interviews.ts', ['interview', 'overview', 'mcp']],
   ['packages/shared/src/leadNotes.ts', ['leads']],
+  ['packages/shared/src/offers.ts', ['offer', 'overview', 'mcp']],
   // API
   ['packages/api/src/routes/stageChanges.ts', ['pipeline']],
   ['packages/api/src/repo/leadRepo.ts', ['leads']],
@@ -92,7 +105,9 @@ export const SOURCE_TAGS = [
   ['packages/api/src/routes/imports.ts', ['import']],
   ['packages/api/src/importHandler.ts', ['import']],
   ['packages/api/src/routes/interviews.ts', ['interview', 'mcp']],
-  ['packages/api/src/mcp/tools.ts', ['mcp', 'deadline', 'leads']],
+  ['packages/api/src/repo/offerFieldsRepo.ts', ['offer', 'mcp']],
+  ['packages/api/src/routes/offers.ts', ['offer', 'mcp']],
+  ['packages/api/src/mcp/tools.ts', ['mcp', 'deadline', 'leads', 'offer']],
   ['packages/api/src/mcp/**', ['mcp']],
   ['packages/api/src/mcpHandler.ts', ['mcp']],
   ['packages/api/src/routes/opportunities.ts', ['capture', 'overview', 'edit', 'leads']],
@@ -105,28 +120,45 @@ export const SOURCE_TAGS = [
   ['packages/web/src/components/MoveStage*', ['pipeline', 'overview']],
   ['packages/web/src/components/DeleteOpportunity*', ['edit']],
   ['packages/web/src/components/focusTrap.ts', ['pipeline', 'overview', 'edit', 'leads']],
-  ['packages/web/src/components/OpportunityCard*', ['overview', 'edit', 'deadline']],
-  ['packages/web/src/components/StageBoard*', ['overview']],
+  [
+    'packages/web/src/components/OpportunityCard*',
+    ['overview', 'edit', 'deadline', 'interview', 'offer'],
+  ],
+  ['packages/web/src/components/StageBoard*', ['overview', 'offer']],
   ['packages/web/src/components/ListToolbar*', ['overview']],
   ['packages/web/src/features/overview/**', ['overview', 'deadline']],
   ['packages/web/src/features/import/**', ['import', 'deadline']],
   ['packages/web/src/components/InterviewForm*', ['interview']],
+  ['packages/web/src/components/InterviewList*', ['interview']],
+  ['packages/web/src/components/RemoveInterview*', ['interview', 'offer']],
+  ['packages/web/src/components/OfferSection*', ['offer']],
+  ['packages/web/src/components/OfferForm*', ['offer']],
+  ['packages/web/src/components/ScoreCell*', ['offer']],
+  ['packages/web/src/components/OfferFields*', ['offer']],
+  ['packages/web/src/offerFormat.ts', ['offer']],
+  ['packages/web/src/api/combineQueries.ts', ['offer']],
+  ['packages/web/src/pages/EditOffer*', ['offer']],
+  ['packages/web/src/pages/Offers*', ['offer']],
+  ['packages/web/src/pages/CompareOffers*', ['offer']],
+  ['packages/web/src/features/offers/**', ['offer', 'overview']],
   ['packages/web/src/components/LeadDialog*', ['leads']],
   ['packages/web/src/components/DeleteLead*', ['leads']],
   ['packages/web/src/components/NoteDialog*', ['leads']],
   ['packages/web/src/components/DeleteNote*', ['leads']],
   ['packages/web/src/pages/Leads*', ['leads']],
+  ['packages/web/src/pages/NewInterview*', ['interview']],
+  ['packages/web/src/pages/InterviewDetail*', ['interview']],
   ['packages/web/src/sw/**', ['installable']],
   ['packages/web/src/registerServiceWorker.ts', ['installable']],
   ['packages/web/public/**', ['installable']],
   ['packages/web/index.html', ['installable']],
   ['packages/web/src/assets/banner-scene.svg', ['theme']],
-  ['packages/web/src/pages/Overview.tsx', ['overview', 'deadline']],
+  ['packages/web/src/pages/Overview.tsx', ['overview', 'deadline', 'offer']],
   ['packages/web/src/pages/Archive.tsx', ['overview', 'deadline']],
   ['packages/web/src/pages/NewOpportunity.tsx', ['capture', 'edit', 'import', 'leads']],
   [
     'packages/web/src/pages/OpportunityDetail.tsx',
-    ['capture', 'pipeline', 'edit', 'deadline', 'leads'],
+    ['capture', 'pipeline', 'edit', 'deadline', 'leads', 'interview', 'offer'],
   ],
   // Infrastructure: the whole package (its tests, config, and dependencies) and the deploy
   ['packages/infra/**', ['infra']],

@@ -1,7 +1,5 @@
 import {
   formatSalaryRange,
-  INTERVIEW_MESSAGES,
-  MAX_INTERVIEWS,
   timeline,
   isFollowUpDue,
   localDate,
@@ -10,22 +8,13 @@ import {
 } from '@jot/shared';
 import { useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ApiError } from '../api/client';
-import {
-  useAddInterview,
-  useDeleteOpportunity,
-  useLeads,
-  useOpportunity,
-  useRemoveInterview,
-  useUpdateInterview,
-  useUpdateOpportunity,
-} from '../api/hooks';
+import { useDeleteOpportunity, useLeads, useUpdateOpportunity } from '../api/hooks';
 import { DeleteOpportunity } from '../components/DeleteOpportunity';
-import { InterviewForm } from '../components/InterviewForm';
-import { RemoveInterview } from '../components/RemoveInterview';
+import { InterviewList, interviewLine, interviewPath } from '../components/InterviewList';
 import { MoveStage } from '../components/MoveStage';
+import { OfferSection } from '../components/OfferSection';
 import { OpportunityForm, toFormValues } from '../components/OpportunityForm';
-import { QueryState } from '../components/QueryState';
+import { OpportunityLoader } from '../components/OpportunityLoader';
 import { StarDisplay } from '../components/StarRating';
 import { WORK_ARRANGEMENT_LABELS, formatCalendarDate, formatDate } from '../format';
 import styles from './Page.module.css';
@@ -54,13 +43,6 @@ function Details({
   const navigate = useNavigate();
   const remove = useDeleteOpportunity(o.id);
   const salary = formatSalaryRange(o.salaryMin, o.salaryMax);
-  const addInterview = useAddInterview(o.id);
-  const updateInterview = useUpdateInterview(o.id);
-  const removeInterview = useRemoveInterview(o.id);
-  const [adding, setAdding] = useState(false);
-  // The interview being changed, if any.
-  const [editing, setEditing] = useState<string | null>(null);
-  const atLimit = (o.interviewCount ?? 0) >= MAX_INTERVIEWS;
   // Its networking lead (feature 010), from the leads list. A link to a lead that's gone shows
   // nothing.
   const { data: leads } = useLeads();
@@ -75,35 +57,11 @@ function Details({
         <button type="button" className={styles.secondaryButton} onClick={onEdit}>
           Edit details
         </button>
-        {!atLimit && (
-          <button
-            type="button"
-            className={styles.secondaryButton}
-            onClick={() => setAdding(true)}
-            disabled={adding}
-          >
-            Add interview
-          </button>
-        )}
         <DeleteOpportunity
           company={o.company}
           onDelete={() => remove.mutateAsync().then(() => navigate('/'))}
         />
       </div>
-      {atLimit && <p className={styles.muted}>{INTERVIEW_MESSAGES.LIMIT}</p>}
-      {adding && (
-        <InterviewForm
-          createdAt={o.createdAt}
-          submitLabel="Save interview"
-          submitting={addInterview.isPending}
-          serverError={addInterview.error?.message}
-          onSubmit={(input) => addInterview.mutate(input, { onSuccess: () => setAdding(false) })}
-          onCancel={() => {
-            addInterview.reset();
-            setAdding(false);
-          }}
-        />
-      )}
 
       <dl className={styles.facts}>
         <Fact label="Stage">{stageLabel(o.stage)}</Fact>
@@ -146,6 +104,8 @@ function Details({
           Details last changed through Claude on {formatDate(o.detailsEditedViaClaudeAt)}
         </p>
       )}
+      <InterviewList opportunity={o} />
+      <OfferSection opportunity={o} />
 
       {o.description && (
         <section aria-labelledby="description-heading">
@@ -163,7 +123,7 @@ function Details({
       <section aria-labelledby="history-heading">
         <h3 id="history-heading">History</h3>
         <ol className={styles.history}>
-          {timeline(o).map((entry) =>
+          {timeline(o, new Date()).map((entry) =>
             entry.kind === 'stage' ? (
               <li key={`stage-${entry.change.seq}`}>
                 {stageLabel(entry.change.toStage)} · {formatDate(entry.at)}
@@ -174,46 +134,11 @@ function Details({
               </li>
             ) : (
               <li key={`interview-${entry.interview.id}`}>
-                {editing === entry.interview.id ? (
-                  <InterviewForm
-                    createdAt={o.createdAt}
-                    initial={entry.interview}
-                    submitLabel="Save interview"
-                    submitting={updateInterview.isPending}
-                    serverError={updateInterview.error?.message}
-                    onSubmit={(patch) =>
-                      updateInterview.mutate(
-                        { interviewId: entry.interview.id, patch },
-                        { onSuccess: () => setEditing(null) },
-                      )
-                    }
-                    onCancel={() => {
-                      updateInterview.reset();
-                      setEditing(null);
-                    }}
-                  />
-                ) : (
-                  <>
-                    Interview · {formatDate(entry.at)}
-                    {entry.interview.via === 'CLAUDE' && (
-                      <span className={styles.muted}> · via Claude</span>
-                    )}
-                    {entry.interview.note && <> · {entry.interview.note}</>}
-                    <span className={styles.entryActions}>
-                      <button
-                        type="button"
-                        className={styles.secondaryButton}
-                        aria-label={`Edit the interview on ${formatDate(entry.at)}`}
-                        onClick={() => setEditing(entry.interview.id)}
-                      >
-                        Edit
-                      </button>
-                      <RemoveInterview
-                        label={`Remove the interview on ${formatDate(entry.at)}`}
-                        onRemove={() => removeInterview.mutateAsync(entry.interview.id)}
-                      />
-                    </span>
-                  </>
+                <Link to={interviewPath(o.id, entry.interview.id)}>
+                  Interview · {interviewLine(entry.interview, { withFormat: false })}
+                </Link>
+                {entry.interview.via === 'CLAUDE' && (
+                  <span className={styles.muted}> · via Claude</span>
                 )}
               </li>
             ),
@@ -227,32 +152,10 @@ function Details({
 export function OpportunityDetailPage() {
   // The route is /opportunities/:id, so the id is always there.
   const id = useParams().id as string;
-  const { data, error, isPending, isFetching, refetch } = useOpportunity(id);
-
-  if (data) {
-    return <Loaded opportunity={data} />;
-  }
-  if (error instanceof ApiError && error.status === 404) {
-    return (
-      <>
-        <h2>Opportunity not found</h2>
-        <Link to="/">Back to the overview</Link>
-      </>
-    );
-  }
   return (
-    <>
-      {error && <h2>Couldn't load this opportunity</h2>}
-      <QueryState
-        what="this opportunity"
-        isPending={isPending}
-        error={error}
-        onRetry={() => void refetch()}
-        retrying={isFetching}
-        skeleton="detail"
-      />
-      {error && <Link to="/">Back to the overview</Link>}
-    </>
+    <OpportunityLoader id={id}>
+      {(opportunity) => <Loaded opportunity={opportunity} />}
+    </OpportunityLoader>
   );
 }
 

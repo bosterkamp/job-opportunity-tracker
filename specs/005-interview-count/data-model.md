@@ -1,7 +1,9 @@
 # Data Model: Interview Count
 
 These changes are additive to feature 001's [data model](../001-job-opportunity-tracker/data-model.md)
-and feature 004's changes.
+and feature 004's changes. Feature 012 adds an interview's details and interviewers, upcoming
+interviews, and the opportunity's `interviewTimes`
+([its data model](../012-interview-details/data-model.md)).
 
 ## Interview (new item)
 

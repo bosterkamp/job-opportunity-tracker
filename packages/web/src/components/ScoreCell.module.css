@@ -1,0 +1,55 @@
+/* Offer scores (feature 013): tinted backgrounds with the site's text color. */
+
+.badge {
+  display: inline-block;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.select {
+  min-height: var(--touch-target);
+  width: 100%;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--color-control-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+}
+
+.score0 {
+  background: var(--score-0);
+}
+
+.score1 {
+  background: var(--score-1);
+}
+
+.score2 {
+  background: var(--score-2);
+}
+
+.score3 {
+  background: var(--score-3);
+}
+
+.score4 {
+  background: var(--score-4);
+}
+
+.score5 {
+  background: var(--score-5);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

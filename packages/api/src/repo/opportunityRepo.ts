@@ -8,10 +8,14 @@ import {
   INTERVIEW_MESSAGES,
   InterviewSchema,
   MAX_INTERVIEWS,
+  OfferChangeSchema,
   OpportunitySchema,
   StageChangeSchema,
   statusForStage,
   type Interview,
+  type InterviewPatch,
+  type Offer,
+  type OfferChange,
   type Opportunity,
   type OpportunityInput,
   type OpportunityPatch,
@@ -27,7 +31,9 @@ import {
   gsi1SortKey,
   interviewKey,
   isInterviewItem,
+  isOfferChangeItem,
   isOpportunityItem,
+  offerChangeKey,
   isStageChangeItem,
   opportunityGsi1,
   opportunityKey,
@@ -63,19 +69,44 @@ export interface OpportunityRepo {
   // Logs an interview and raises the count in one transaction (feature 005). Throws the
   // limit's VALIDATION_ERROR when the opportunity already has the most it can have.
   addInterview(id: string, interview: Interview, now: string): Promise<void>;
-  // Changes an interview's date or note (null clears the note). Through Claude it's marked;
-  // a web edit removes the mark. False if there's no such interview.
+  // Changes an interview's fields (null clears one). A new date also changes the
+  // opportunity's interview times, in the same transaction (feature 012). Through Claude it's
+  // marked; a web edit removes the mark. False if there's no such interview.
   updateInterview(
     id: string,
     interviewId: string,
-    fields: { heldAt?: string; note?: string | null },
+    fields: InterviewPatch,
+    now: string,
     via?: Via,
   ): Promise<boolean>;
   // Removes an interview and lowers the count in one transaction. False if there's no such
   // interview.
   removeInterview(id: string, interviewId: string, now: string): Promise<boolean>;
+  // Gives an opportunity stored before feature 012 its interview times, from its interviews
+  // as just read. Every interview change calls this first, so the times always exist before
+  // any one of them changes, and the first to be written comes from a complete read. Does
+  // nothing when they're already there (research §2).
+  startInterviewTimes(opportunity: OpportunityWithHistory): Promise<void>;
   // Removes the opportunity and its whole history. False if there was nothing to delete.
   deletePermanently(id: string): Promise<boolean>;
+  // Writes the offer and its history entry together (feature 013). Throws CONFLICT if the
+  // offer's version is no longer `expectedVersion` (0: there's no offer yet).
+  saveOffer(id: string, write: OfferWrite): Promise<void>;
+  // Sets scores (null removes one), leaving the others. False if there's no offer.
+  setOfferScores(id: string, scores: Record<string, number | null>, now: string): Promise<boolean>;
+  // Removes the offer, its scores and its whole history. Throws CONFLICT if the offer changed
+  // since it was read.
+  removeOffer(id: string, expectedVersion: number, now: string): Promise<void>;
+}
+
+export interface OfferWrite {
+  offer: Offer;
+  // The version read, which is the last history entry's seq; 0 when there's no offer.
+  expectedVersion: number;
+  entry: OfferChange;
+  // Scores for custom fields that have been removed, dropped with this save.
+  dropScores: string[];
+  now: string;
 }
 
 export interface DateAddedWrite {
@@ -105,6 +136,15 @@ export const CONFLICT_MESSAGE =
 export interface RepoOptions {
   // Items per Query page. Only tests set this, to exercise pagination.
   pageSize?: number;
+}
+
+// The item keeps interview times by interview id, so one can change on its own; replies list
+// them, sorted (feature 012). They're UTC timestamps, so they sort as strings.
+function opportunityFromItem(item: Record<string, unknown>): Opportunity {
+  const { interviewTimes, ...rest } = item;
+  return OpportunitySchema.parse(
+    interviewTimes ? { ...rest, interviewTimes: Object.values(interviewTimes).sort() } : rest,
+  );
 }
 
 // Oldest first by date; interviews on the same date by when they were recorded.
@@ -192,10 +232,15 @@ export function createOpportunityRepo(
       }
       const history = items.filter(isStageChangeItem).map((item) => StageChangeSchema.parse(item));
       const interviews = items.filter(isInterviewItem).map((item) => InterviewSchema.parse(item));
+      // In key order, which is the order they were saved (feature 013).
+      const offerHistory = items
+        .filter(isOfferChangeItem)
+        .map((item) => OfferChangeSchema.parse(item));
       return {
-        ...OpportunitySchema.parse(opportunityItem),
+        ...opportunityFromItem(opportunityItem),
         history: sortHistory(history),
         interviews: sortInterviews(interviews),
+        ...(offerHistory.length > 0 && { offerHistory }),
       };
     },
 
@@ -207,7 +252,7 @@ export function createOpportunityRepo(
         ExpressionAttributeValues: { ':pk': statusPartition(status) },
         ScanIndexForward: false,
       });
-      return items.map((item) => OpportunitySchema.parse(item));
+      return items.map((item) => opportunityFromItem(item));
     },
 
     // Access pattern A5: update the OPP item and add CHANGE#<n+1> in one transaction. The
@@ -308,7 +353,7 @@ export function createOpportunityRepo(
             ReturnValues: 'ALL_NEW',
           }),
         );
-        return OpportunitySchema.parse(result.Attributes);
+        return opportunityFromItem(result.Attributes as Record<string, unknown>);
       } catch (error) {
         if (error instanceof ConditionalCheckFailedException) {
           return undefined;
@@ -383,14 +428,16 @@ export function createOpportunityRepo(
                   Key: opportunityKey(id),
                   UpdateExpression:
                     'SET interviewCount = if_not_exists(interviewCount, :zero) + :one, ' +
-                    'updatedAt = :now',
+                    'interviewTimes.#iid = :heldAt, updatedAt = :now',
                   ConditionExpression:
                     'attribute_exists(PK) AND ' +
                     '(attribute_not_exists(interviewCount) OR interviewCount < :max)',
+                  ExpressionAttributeNames: { '#iid': interview.id },
                   ExpressionAttributeValues: {
                     ':zero': 0,
                     ':one': 1,
                     ':max': MAX_INTERVIEWS,
+                    ':heldAt': interview.heldAt,
                     ':now': now,
                   },
                 },
@@ -407,35 +454,66 @@ export function createOpportunityRepo(
       }
     },
 
-    async updateInterview(id, interviewId, fields, via) {
+    async updateInterview(id, interviewId, fields, now, via) {
       const names: Record<string, string> = { '#via': 'via' };
       const values: Record<string, unknown> = {};
       const sets: string[] = [];
+      const removes: string[] = [];
       for (const [field, value] of Object.entries(fields)) {
         names[`#${field}`] = field;
-        values[`:${field}`] = value;
-        sets.push(`#${field} = :${field}`);
+        // A cleared detail is removed; the note is kept as null, as it always has been.
+        if (value === null && field !== 'note') {
+          removes.push(`#${field}`);
+        } else {
+          values[`:${field}`] = value;
+          sets.push(`#${field} = :${field}`);
+        }
       }
       if (via === 'CLAUDE') {
         values[':via'] = via;
         sets.push('#via = :via');
+      } else {
+        removes.push('#via');
       }
+      const interviewUpdate = {
+        TableName: tableName,
+        Key: interviewKey(id, interviewId),
+        UpdateExpression: [
+          sets.length > 0 && `SET ${sets.join(', ')}`,
+          removes.length > 0 && `REMOVE ${removes.join(', ')}`,
+        ]
+          .filter(Boolean)
+          .join(' '),
+        ConditionExpression: 'attribute_exists(PK)',
+        ExpressionAttributeNames: names,
+        ...(Object.keys(values).length > 0 && { ExpressionAttributeValues: values }),
+      };
       try {
-        await client.send(
-          new UpdateCommand({
-            TableName: tableName,
-            Key: interviewKey(id, interviewId),
-            UpdateExpression:
-              (sets.length > 0 ? `SET ${sets.join(', ')} ` : '') +
-              (via === 'CLAUDE' ? '' : 'REMOVE #via'),
-            ConditionExpression: 'attribute_exists(PK)',
-            ExpressionAttributeNames: names,
-            ...(Object.keys(values).length > 0 && { ExpressionAttributeValues: values }),
-          }),
-        );
+        if (fields.heldAt === undefined) {
+          await client.send(new UpdateCommand(interviewUpdate));
+        } else {
+          // A new date moves the interview's time on the opportunity too (feature 012).
+          await client.send(
+            new TransactWriteCommand({
+              TransactItems: [
+                { Update: interviewUpdate },
+                {
+                  Update: {
+                    TableName: tableName,
+                    Key: opportunityKey(id),
+                    UpdateExpression: 'SET interviewTimes.#iid = :heldAt, updatedAt = :now',
+                    ConditionExpression: 'attribute_exists(PK)',
+                    ExpressionAttributeNames: { '#iid': interviewId },
+                    ExpressionAttributeValues: { ':heldAt': fields.heldAt, ':now': now },
+                  },
+                },
+              ],
+            }),
+          );
+        }
         return true;
       } catch (error) {
-        if (error instanceof ConditionalCheckFailedException) {
+        if (error instanceof ConditionalCheckFailedException || isConditionFailure(error)) {
           return false;
         }
         throw error;
@@ -458,8 +536,11 @@ export function createOpportunityRepo(
                 Update: {
                   TableName: tableName,
                   Key: opportunityKey(id),
-                  UpdateExpression: 'SET interviewCount = interviewCount - :one, updatedAt = :now',
+                  UpdateExpression:
+                    'SET interviewCount = interviewCount - :one, updatedAt = :now ' +
+                    'REMOVE interviewTimes.#iid',
                   ConditionExpression: 'interviewCount > :zero',
+                  ExpressionAttributeNames: { '#iid': interviewId },
                   ExpressionAttributeValues: { ':zero': 0, ':one': 1, ':now': now },
                 },
               },
@@ -472,6 +553,31 @@ export function createOpportunityRepo(
           return false;
         }
         throw error;
+      }
+    },
+
+    async startInterviewTimes(opportunity) {
+      if (opportunity.interviewTimes) {
+        return;
+      }
+      const times = Object.fromEntries(
+        (opportunity.interviews ?? []).map((interview) => [interview.id, interview.heldAt]),
+      );
+      try {
+        await client.send(
+          new UpdateCommand({
+            TableName: tableName,
+            Key: opportunityKey(opportunity.id),
+            UpdateExpression: 'SET interviewTimes = :times',
+            ConditionExpression: 'attribute_exists(PK) AND attribute_not_exists(interviewTimes)',
+            ExpressionAttributeValues: { ':times': times },
+          }),
+        );
+      } catch (error) {
+        // Another change started them first, from its own complete read.
+        if (!(error instanceof ConditionalCheckFailedException)) {
+          throw error;
+        }
       }
     },
 
@@ -494,6 +600,129 @@ export function createOpportunityRepo(
         );
       }
       return keys.length > 0;
+    },
+
+    // Feature 013, research §2: the offer and its entry in one transaction. The version
+    // condition means two saves racing can't both write, so no change is lost from the history.
+    async saveOffer(id, { offer, expectedVersion, entry, dropScores, now }) {
+      const first = expectedVersion === 0;
+      const names: Record<string, string> = {};
+      dropScores.forEach((key, index) => {
+        names[`#d${index}`] = key;
+      });
+      const removes = dropScores.map((_, index) => `offerScores.#d${index}`);
+      try {
+        await client.send(
+          new TransactWriteCommand({
+            TransactItems: [
+              {
+                Update: {
+                  TableName: tableName,
+                  Key: opportunityKey(id),
+                  UpdateExpression:
+                    'SET offer = :offer, offerVersion = :version, updatedAt = :now' +
+                    (first ? ', offerScores = :noScores' : '') +
+                    (removes.length > 0 ? ` REMOVE ${removes.join(', ')}` : ''),
+                  ConditionExpression: first
+                    ? 'attribute_exists(PK) AND attribute_not_exists(offerVersion)'
+                    : 'offerVersion = :expected',
+                  ...(removes.length > 0 && { ExpressionAttributeNames: names }),
+                  ExpressionAttributeValues: {
+                    ':offer': offer,
+                    ':version': entry.seq,
+                    ':now': now,
+                    ...(first ? { ':noScores': {} } : { ':expected': expectedVersion }),
+                  },
+                },
+              },
+              {
+                Put: {
+                  TableName: tableName,
+                  Item: { ...offerChangeKey(id, entry.seq), ...entry },
+                  ConditionExpression: 'attribute_not_exists(PK)',
+                },
+              },
+            ],
+          }),
+        );
+      } catch (error) {
+        if (isConditionFailure(error)) {
+          throw new ApiError('CONFLICT', CONFLICT_MESSAGE);
+        }
+        throw error;
+      }
+    },
+
+    // One UpdateItem, so each score is set on its own and quick changes can't overwrite each
+    // other (research §3).
+    async setOfferScores(id, scores, now) {
+      const names: Record<string, string> = {};
+      const values: Record<string, unknown> = { ':now': now };
+      const sets = ['updatedAt = :now'];
+      const removes: string[] = [];
+      Object.entries(scores).forEach(([key, score], index) => {
+        names[`#k${index}`] = key;
+        if (score === null) {
+          removes.push(`offerScores.#k${index}`);
+        } else {
+          values[`:v${index}`] = score;
+          sets.push(`offerScores.#k${index} = :v${index}`);
+        }
+      });
+      try {
+        await client.send(
+          new UpdateCommand({
+            TableName: tableName,
+            Key: opportunityKey(id),
+            UpdateExpression:
+              `SET ${sets.join(', ')}` +
+              (removes.length > 0 ? ` REMOVE ${removes.join(', ')}` : ''),
+            ConditionExpression: 'attribute_exists(offer)',
+            ExpressionAttributeNames: names,
+            ExpressionAttributeValues: values,
+          }),
+        );
+        return true;
+      } catch (error) {
+        if (error instanceof ConditionalCheckFailedException) {
+          return false;
+        }
+        throw error;
+      }
+    },
+
+    // The offer goes first, conditional on its version, with as many history entries as fit;
+    // then any left, in further transactions. A later save starts a new history from 1.
+    async removeOffer(id, expectedVersion, now) {
+      const entries = Array.from({ length: expectedVersion }, (_, i) => ({
+        Delete: { TableName: tableName, Key: offerChangeKey(id, i + 1) },
+      }));
+      const offerUpdate = {
+        Update: {
+          TableName: tableName,
+          Key: opportunityKey(id),
+          UpdateExpression: 'SET updatedAt = :now REMOVE offer, offerScores, offerVersion',
+          ConditionExpression: 'offerVersion = :expected',
+          ExpressionAttributeValues: { ':now': now, ':expected': expectedVersion },
+        },
+      };
+      const batches = [entries.slice(0, MAX_TRANSACTION_ITEMS - 1)];
+      for (let i = MAX_TRANSACTION_ITEMS - 1; i < entries.length; i += MAX_TRANSACTION_ITEMS) {
+        batches.push(entries.slice(i, i + MAX_TRANSACTION_ITEMS));
+      }
+      try {
+        await client.send(
+          new TransactWriteCommand({ TransactItems: [offerUpdate, ...(batches[0] ?? [])] }),
+        );
+      } catch (error) {
+        if (isConditionFailure(error)) {
+          throw new ApiError('CONFLICT', CONFLICT_MESSAGE);
+        }
+        throw error;
+      }
+      for (const batch of batches.slice(1)) {
+        await client.send(new TransactWriteCommand({ TransactItems: batch }));
+      }
     },
   };
 }

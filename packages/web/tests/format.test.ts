@@ -1,6 +1,11 @@
 // @module-tag core
 import { describe, expect, it } from 'vitest';
-import { WORK_ARRANGEMENT_LABELS, formatCalendarDate, formatDate } from '../src/format';
+import {
+  WORK_ARRANGEMENT_LABELS,
+  formatCalendarDate,
+  formatDate,
+  formatDateTime,
+} from '../src/format';
 
 describe('formatDate', () => {
   it('formats a moment as a medium date', () => {
@@ -13,6 +18,18 @@ describe('formatDate', () => {
         new Date('2026-10-17T12:00:00.000Z'),
       ),
     );
+  });
+});
+
+describe('formatDateTime (feature 012)', () => {
+  it('formats a moment as a medium date with a short time', () => {
+    const at = '2026-11-12T19:00:00.000Z';
+    expect(formatDateTime(at, 'en-US')).toBe(
+      new Intl.DateTimeFormat('en-US', { dateStyle: 'medium', timeStyle: 'short' }).format(
+        new Date(at),
+      ),
+    );
+    expect(formatDateTime(at, 'en-US')).toMatch(/^Nov 1[23], 2026, \d{1,2}:\d{2}\s[AP]M$/);
   });
 });
 

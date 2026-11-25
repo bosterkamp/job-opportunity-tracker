@@ -11,6 +11,9 @@ Later features add to this model; the table layout below includes their items:
   ([data model](../004-board-and-form-updates/data-model.md))
 - **005, interview count**: interview items and the opportunity's `interviewCount`
   ([data model](../005-interview-count/data-model.md))
+- **013, offer details and comparison**: the opportunity's `offer`, `offerScores` and
+  `offerVersion`, its `OFFERCHANGE#` history items, and the `SETTINGS`/`OFFER_FIELDS` item for
+  the custom fields ([data model](../013-offer-comparison/data-model.md))
 
 ## Entities
 

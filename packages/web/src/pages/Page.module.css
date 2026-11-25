@@ -75,14 +75,6 @@
   gap: var(--space-3);
 }
 
-/* Edit and Remove on an interview in the history (feature 005). */
-.entryActions {
-  display: inline-flex;
-  gap: var(--space-2);
-  margin-left: var(--space-3);
-  vertical-align: middle;
-}
-
 .secondaryButton {
   min-height: var(--touch-target);
   padding: 0 var(--space-4);
@@ -92,6 +84,23 @@
   color: var(--color-text);
   font: inherit;
   cursor: pointer;
+}
+
+/* "Back to {company}" from an interview's pages (feature 012): a full-size target on phones. */
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+}
+
+/* A link that looks like a secondary button, such as "Add interview" (feature 012). */
+.secondaryLink {
+  composes: secondaryButton;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-text);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .facts {
@@ -120,4 +129,11 @@
   padding-left: var(--space-6);
   display: grid;
   gap: var(--space-2);
+}
+
+/* An interview's line opens its page (feature 012): a full-size target on phones. */
+.history a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
 }

@@ -2,6 +2,7 @@
 import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { formatDateTime } from '../src/format';
 import { anOpportunity, jsonResponse, mockApi, renderApp } from './harness';
 import { setWideScreen } from './media';
 import { fill } from './user';
@@ -229,7 +230,7 @@ describe('the interview count (feature 005)', { tags: ['interview'] }, () => {
   const badge = (name: string) =>
     screen.getByRole('article', { name }).querySelector('[class*="interviews"]')?.textContent;
 
-  it('shows "1 interview" and "3 interviews" at the top right, and nothing without any', async () => {
+  it('shows "1 completed interview" and "3 completed interviews" at the top right, and nothing without any', async () => {
     setWideScreen(true);
     serve([
       anOpportunity({ id: 'o', company: 'One', interviewCount: 1 }),
@@ -240,14 +241,14 @@ describe('the interview count (feature 005)', { tags: ['interview'] }, () => {
     renderApp('/');
 
     await screen.findByRole('article', { name: 'One' });
-    expect(badge('One')).toBe('1 interview');
-    expect(badge('Three')).toBe('3 interviews');
+    expect(badge('One')).toBe('1 completed interview');
+    expect(badge('Three')).toBe('3 completed interviews');
     expect(badge('Zero')).toBeUndefined();
     expect(badge('Never')).toBeUndefined();
     // Beside the company, in the card's header.
     const header = screen.getByRole('article', { name: 'Three' }).firstElementChild;
     expect(header?.querySelector('h3')).toHaveTextContent('Three');
-    expect(header?.lastElementChild).toHaveTextContent('3 interviews');
+    expect(header?.lastElementChild).toHaveTextContent('3 completed interviews');
   });
 
   it('shows the count on closed cards too', async () => {
@@ -267,7 +268,56 @@ describe('the interview count (feature 005)', { tags: ['interview'] }, () => {
     renderApp('/');
 
     await screen.findByRole('article', { name: 'Closed Co' });
-    expect(badge('Closed Co')).toBe('2 interviews');
+    expect(badge('Closed Co')).toBe('2 completed interviews');
+  });
+});
+
+describe('held and upcoming interviews on cards (feature 012)', { tags: ['interview'] }, () => {
+  const NOW = new Date('2026-11-10T15:00:00.000Z');
+  const badge = (name: string) =>
+    screen.getByRole('article', { name }).querySelector('[class*="interviews"]')?.textContent;
+  const next = (name: string) =>
+    within(screen.getByRole('article', { name })).queryByText(/^Next interview: /)?.textContent;
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('counts only interviews that have happened, and shows when the next one is', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    setWideScreen(true);
+    const soon = '2026-11-12T19:00:00.000Z';
+    serve([
+      anOpportunity({
+        id: 'm',
+        company: 'Mixed',
+        interviewCount: 4,
+        interviewTimes: [
+          '2026-10-01T12:00:00.000Z',
+          NOW.toISOString(),
+          soon,
+          '2026-11-20T19:00:00.000Z',
+        ],
+      }),
+      anOpportunity({
+        id: 'u',
+        company: 'Upcoming only',
+        interviewCount: 1,
+        interviewTimes: [soon],
+      }),
+      anOpportunity({ id: 'o', company: 'Older', interviewCount: 2 }),
+    ]);
+    renderApp('/');
+
+    await screen.findByRole('article', { name: 'Mixed' });
+    expect(badge('Mixed')).toBe('2 completed interviews');
+    expect(next('Mixed')).toBe(`Next interview: ${formatDateTime(soon)}`);
+    expect(badge('Upcoming only')).toBeUndefined();
+    expect(next('Upcoming only')).toBe(`Next interview: ${formatDateTime(soon)}`);
+    // Stored before the times were kept: every one has happened.
+    expect(badge('Older')).toBe('2 completed interviews');
+    expect(next('Older')).toBeUndefined();
   });
 });
 

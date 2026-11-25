@@ -1,0 +1,39 @@
+/* The Offer section on an opportunity's page (feature 013). */
+
+.section {
+  margin-bottom: var(--space-6);
+}
+
+/* Each detail is a row of the facts grid, so its term and value line up with the rest. */
+.row {
+  display: contents;
+}
+
+.value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.group {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--text-base);
+}
+
+.history {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-left: var(--space-6);
+}
+
+.entryTitle {
+  font-weight: 600;
+}
+
+.changes {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+  overflow-wrap: anywhere;
+}

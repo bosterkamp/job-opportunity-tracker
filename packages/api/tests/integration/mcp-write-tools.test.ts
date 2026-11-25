@@ -339,7 +339,13 @@ describe('move_opportunity', () => {
 describe('interview tools (feature 005)', () => {
   type WithInterviews = Json & {
     interviewCount: number;
-    interviews: { id: string; heldAt: string; note: string | null; via?: string }[];
+    interviews: {
+      id: string;
+      heldAt: string;
+      note: string | null;
+      via?: string;
+      upcoming?: boolean;
+    }[];
   };
 
   async function withOpportunity(t: Awaited<ReturnType<typeof setup>>) {
@@ -418,11 +424,11 @@ describe('interview tools (feature 005)', () => {
     }
   });
 
-  it("refuses a future date and a 7th interview with the web app's messages", async () => {
+  it("refuses a date over a year ahead and a 7th interview with the web app's messages", async () => {
     const t = await setup();
     try {
       const id = await withOpportunity(t);
-      const future = { held_at: '2026-10-21T00:00:00.000Z' };
+      const future = { held_at: '2027-10-21T00:00:00.000Z' };
       const fromWeb = await t.viaWeb('POST', `/opportunities/${id}/interviews`, {
         heldAt: future.held_at,
       });
@@ -434,7 +440,7 @@ describe('interview tools (feature 005)', () => {
       const seventh = refusal(await t.call('add_interview', { opportunity_id: id }));
 
       expect(refused).toBe(`VALIDATION_ERROR: ${String(fromWeb.body.message)}`);
-      expect(refused).toBe("VALIDATION_ERROR: The date can't be in the future");
+      expect(refused).toBe("VALIDATION_ERROR: An interview can't be more than a year ahead");
       expect(seventh).toBe(
         'VALIDATION_ERROR: This opportunity already has 6 interviews, the most it can have',
       );
@@ -506,10 +512,11 @@ describe('interview tools (feature 005)', () => {
         [],
       );
       expect(byName.add_interview).toMatchObject({
-        title: 'Log an interview',
+        title: 'Add an interview',
         description:
-          "Logs an interview the owner has had for an opportunity (at most 6 each). It doesn't " +
-          'change the stage: use move_opportunity for that.',
+          'Adds an interview for an opportunity, one that has happened or one coming up (at most ' +
+          "6 each, upcoming ones included). It doesn't change the stage: use move_opportunity for " +
+          'that. Every detail is optional. Set outcome only once the interview has happened.',
         annotations: {
           readOnlyHint: false,
           destructiveHint: false,
@@ -520,21 +527,37 @@ describe('interview tools (feature 005)', () => {
       expect(byName.update_interview).toMatchObject({
         title: 'Change an interview',
         description:
-          "Changes an interview's date or note. Interviews can be removed only in the web app.",
+          "Changes an interview's time or details; null clears a detail, and interviewers " +
+          'replaces the whole list. Interviews can be removed only in the web app.',
       });
       const heldAt =
-        'When the interview happened: an ISO date-time, not in the future; defaults to now';
+        'When the interview is: an ISO date-time, at most a year ahead; defaults to now';
       expect(props('add_interview').opportunity_id?.description).toBe("The opportunity's id");
       expect(props('add_interview').held_at?.description).toBe(heldAt);
-      expect(props('add_interview').note?.description).toBe(
-        'Optional note, such as the interviewer or the kind of interview',
-      );
+      expect(props('add_interview').note?.description).toBe('A short note');
+      for (const tool of ['add_interview', 'update_interview']) {
+        expect(props(tool).kind?.description).toBe(
+          'The type: HR (HR / talent advisor), HIRING_MANAGER, BUSINESS, ENGINEERING, or OTHER',
+        );
+        expect(props(tool).panel?.description).toBe('Whether it was a panel interview');
+        expect(props(tool).format?.description).toBe('PHONE, VIDEO, or IN_PERSON');
+        expect(props(tool).outcome?.description).toBe(
+          'How it went: WENT_WELL, NOT_SURE, or WENT_BADLY. Only once it has happened',
+        );
+        expect(props(tool).next_steps?.description).toBe(
+          'What happens next, such as "Decision by Friday"',
+        );
+        expect(props(tool).interviewers?.description).toBe(
+          'Who was in it, at most 10: each a name, and optionally a title, email, phone, and ' +
+            'LinkedIn profile address',
+        );
+      }
       expect(props('update_interview').opportunity_id?.description).toBe("The opportunity's id");
       expect(props('update_interview').interview_id?.description).toBe(
         "The interview's id, from get_opportunity",
       );
       expect(props('update_interview').held_at?.description).toBe(heldAt);
-      expect(props('update_interview').note?.description).toBe('null clears the note');
+      expect(props('update_interview').note?.description).toBe('A short note; null clears it');
     } finally {
       await t.close();
     }
@@ -549,10 +572,135 @@ describe('interview tools (feature 005)', () => {
       const found = await t.call('find_opportunities', { query: 'globex' });
       const got = await t.call('get_opportunity', { id });
 
-      expect(found.structuredContent).toMatchObject({ items: [{ interviewCount: 1 }] });
+      expect(found.structuredContent).toMatchObject({
+        items: [{ interviewCount: 1, nextInterviewAt: null }],
+      });
       expect((got.structuredContent as WithInterviews).interviews).toMatchObject([
-        { note: 'Phone' },
+        { note: 'Phone', upcoming: false },
       ]);
+    } finally {
+      await t.close();
+    }
+  });
+
+  // Feature 012.
+  const details = {
+    kind: 'HIRING_MANAGER',
+    panel: true,
+    format: 'VIDEO',
+    next_steps: 'Decision by Friday',
+    interviewers: [
+      { name: 'Priya Shah', title: 'Engineering Manager', linkedin: 'linkedin.com/in/priya' },
+      { name: 'Tom Lee' },
+    ],
+  };
+
+  it('adds an upcoming interview with its details and interviewers', async () => {
+    const t = await setup();
+    try {
+      const id = await withOpportunity(t);
+
+      const result = await t.call('add_interview', {
+        opportunity_id: id,
+        held_at: '2026-10-22T19:00:00.000Z',
+        ...details,
+      });
+
+      expect(result.isError).toBeUndefined();
+      expect((result.structuredContent as WithInterviews).interviews).toMatchObject([
+        {
+          heldAt: '2026-10-22T19:00:00.000Z',
+          kind: 'HIRING_MANAGER',
+          panel: true,
+          format: 'VIDEO',
+          nextSteps: 'Decision by Friday',
+          interviewers: [
+            {
+              name: 'Priya Shah',
+              title: 'Engineering Manager',
+              linkedin: 'https://linkedin.com/in/priya',
+            },
+            { name: 'Tom Lee' },
+          ],
+          via: 'CLAUDE',
+        },
+      ]);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it('says which interviews are upcoming, and when the next one is', async () => {
+    const t = await setup();
+    try {
+      const id = await withOpportunity(t);
+      await t.call('add_interview', { opportunity_id: id, held_at: '2026-10-19T12:00:00.000Z' });
+      await t.call('add_interview', { opportunity_id: id, held_at: '2026-10-25T12:00:00.000Z' });
+      await t.call('add_interview', { opportunity_id: id, held_at: '2026-10-22T12:00:00.000Z' });
+
+      const listed = await t.call('list_opportunities', {});
+      const got = (await t.call('get_opportunity', { id })).structuredContent as WithInterviews;
+
+      expect(listed.structuredContent).toMatchObject({
+        items: [{ id, interviewCount: 1, nextInterviewAt: '2026-10-22T12:00:00.000Z' }],
+      });
+      expect(got.interviews.map((i) => [i.heldAt, i.upcoming])).toEqual([
+        ['2026-10-19T12:00:00.000Z', false],
+        ['2026-10-22T12:00:00.000Z', true],
+        ['2026-10-25T12:00:00.000Z', true],
+      ]);
+      // The opportunity itself keeps the web app's count of every interview, upcoming included.
+      expect(got.interviewCount).toBe(3);
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("changes and clears an interview's details, replacing the interviewers", async () => {
+    const t = await setup();
+    try {
+      const id = await withOpportunity(t);
+      const added = (await t.call('add_interview', { opportunity_id: id, ...details }))
+        .structuredContent as WithInterviews;
+      const interviewId = added.interviews[0]?.id;
+
+      const changed = await t.call('update_interview', {
+        opportunity_id: id,
+        interview_id: interviewId,
+        outcome: 'WENT_WELL',
+        interviewers: [{ name: 'Sam Ortiz' }],
+        kind: null,
+        panel: null,
+        next_steps: null,
+      });
+
+      expect((changed.structuredContent as WithInterviews).interviews[0]).toEqual({
+        id: interviewId,
+        heldAt: '2026-10-20T15:00:00.000Z',
+        note: null,
+        recordedAt: '2026-10-20T15:00:00.000Z',
+        format: 'VIDEO',
+        outcome: 'WENT_WELL',
+        interviewers: [{ name: 'Sam Ortiz' }],
+        via: 'CLAUDE',
+        upcoming: false,
+      });
+    } finally {
+      await t.close();
+    }
+  });
+
+  it("refuses a bad interviewer with the web app's message", async () => {
+    const t = await setup();
+    try {
+      const id = await withOpportunity(t);
+
+      const result = await t.call('add_interview', {
+        opportunity_id: id,
+        interviewers: [{ name: 'A', email: 'nope' }],
+      });
+
+      expect(refusal(result)).toBe('VALIDATION_ERROR: Enter a valid email address');
     } finally {
       await t.close();
     }
@@ -736,6 +884,10 @@ describe('the write tools', () => {
         'move_opportunity',
         'add_interview',
         'update_interview',
+        'update_offer',
+        'score_offer',
+        'add_offer_field',
+        'rename_offer_field',
         'add_lead',
         'update_lead',
         'add_lead_note',

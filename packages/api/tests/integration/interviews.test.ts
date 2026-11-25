@@ -1,5 +1,5 @@
 // @module-tag interview
-import { QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHandler } from '../../src/handler.js';
 import { createOpportunityRepo } from '../../src/repo/opportunityRepo.js';
@@ -116,7 +116,11 @@ describe('POST /opportunities/{id}/interviews', () => {
   });
 
   it.each([
-    ['in the future', '2026-10-20T15:01:00.001Z', "The date can't be in the future"],
+    [
+      'more than a year ahead',
+      '2027-10-20T15:00:00.001Z',
+      "An interview can't be more than a year ahead",
+    ],
     [
       'before the date added',
       '2026-10-01T11:59:59.999Z',
@@ -132,10 +136,10 @@ describe('POST /opportunities/{id}/interviews', () => {
     expect(await opp(created.id)).not.toHaveProperty('interviewCount');
   });
 
-  it('allows up to a minute of clock skew, and the moment it was added', async () => {
+  it('allows the moment it was added, and up to a year ahead (feature 012)', async () => {
     const created = await opportunity();
 
-    expect((await add(created.id, { heldAt: '2026-10-20T15:01:00.000Z' })).statusCode).toBe(201);
+    expect((await add(created.id, { heldAt: '2027-10-20T15:00:00.000Z' })).statusCode).toBe(201);
     expect((await add(created.id, { heldAt: '2026-10-01T12:00:00.000Z' })).statusCode).toBe(201);
   });
 
@@ -234,11 +238,11 @@ describe('PATCH /opportunities/{id}/interviews/{interviewId}', () => {
   it('applies the same date rules', async () => {
     const { id, iid } = await withInterview();
 
-    const result = await edit(id, iid, { heldAt: '2026-10-21T00:00:00.000Z' });
+    const result = await edit(id, iid, { heldAt: '2027-10-21T00:00:00.000Z' });
 
     expect(parse(result)).toEqual({
       code: 'VALIDATION_ERROR',
-      message: "The date can't be in the future",
+      message: "An interview can't be more than a year ahead",
       fields: ['heldAt'],
     });
   });
@@ -372,5 +376,221 @@ describe('interviews and the rest of the opportunity', () => {
       fields: ['createdAt'],
     });
     expect(same.statusCode).toBe(200);
+  });
+});
+
+describe('interview details (feature 012)', () => {
+  const details = {
+    kind: 'HIRING_MANAGER',
+    panel: true,
+    format: 'VIDEO',
+    outcome: 'WENT_WELL',
+    nextSteps: 'Decision by Friday',
+    interviewers: [
+      {
+        name: 'Priya Shah',
+        title: 'Engineering Manager',
+        email: 'priya@acme.example',
+        phone: '+1 555 0100',
+        linkedin: 'https://www.linkedin.com/in/priya-shah',
+      },
+      { name: 'Tom Lee' },
+    ],
+  };
+  const interviewItems = async (id: string) =>
+    (await items(id)).filter((i) => String(i.SK).startsWith('INTERVIEW#'));
+  const times = async (id: string) => (await opp(id))?.interviewTimes;
+
+  it('stores and returns every detail', async () => {
+    const created = await opportunity();
+
+    const result = await add(created.id, { heldAt: '2026-10-19T14:00:00.000Z', ...details });
+
+    expect(result.statusCode).toBe(201);
+    expect(parse(result).interviews[0]).toEqual({
+      id: expect.any(String) as unknown,
+      heldAt: '2026-10-19T14:00:00.000Z',
+      note: null,
+      recordedAt: '2026-10-20T15:00:00.000Z',
+      ...details,
+    });
+    expect((await interviewItems(created.id))[0]).toMatchObject(details);
+  });
+
+  it('takes an upcoming interview, and refuses a 7th counting upcoming ones', async () => {
+    const created = await opportunity();
+    for (let i = 0; i < 5; i++) {
+      await add(created.id);
+    }
+
+    const upcoming = await add(created.id, { heldAt: '2026-10-21T15:00:00.000Z' });
+    const seventh = await add(created.id, { heldAt: '2026-10-22T15:00:00.000Z' });
+
+    expect(upcoming.statusCode).toBe(201);
+    expect(parse(upcoming).interviewCount).toBe(6);
+    expect(parse(seventh)).toEqual({ code: 'VALIDATION_ERROR', message: limit });
+  });
+
+  it('changes and clears each detail, replacing the interviewers as a whole', async () => {
+    const created = await opportunity();
+    const iid = parse(await add(created.id, details)).interviews[0]?.id as string;
+
+    const changed = parse(
+      await edit(created.id, iid, {
+        kind: 'ENGINEERING',
+        panel: false,
+        interviewers: [{ name: 'Sam Ortiz', title: 'Staff Engineer' }],
+      }),
+    );
+    expect(changed.interviews[0]).toMatchObject({
+      kind: 'ENGINEERING',
+      panel: false,
+      format: 'VIDEO',
+      interviewers: [{ name: 'Sam Ortiz', title: 'Staff Engineer' }],
+    });
+
+    const cleared = parse(
+      await edit(created.id, iid, {
+        kind: null,
+        panel: null,
+        format: null,
+        outcome: null,
+        nextSteps: '',
+        interviewers: [],
+      }),
+    );
+    expect(cleared.interviews[0]).toEqual({
+      id: iid,
+      heldAt: '2026-10-20T15:00:00.000Z',
+      note: null,
+      recordedAt: '2026-10-20T15:00:00.000Z',
+    });
+    const [stored] = await interviewItems(created.id);
+    for (const field of ['kind', 'panel', 'format', 'outcome', 'nextSteps', 'interviewers']) {
+      expect(stored).not.toHaveProperty(field);
+    }
+  });
+
+  it('refuses a bad interviewer, on its field, and writes nothing', async () => {
+    const created = await opportunity();
+
+    const result = await add(created.id, {
+      interviewers: [{ name: 'A', linkedin: 'https://example.com/in/a' }],
+    });
+
+    expect(parse(result)).toEqual({
+      code: 'VALIDATION_ERROR',
+      message: 'Enter a LinkedIn profile address',
+      fields: ['interviewers.0.linkedin'],
+    });
+    expect(await interviewItems(created.id)).toHaveLength(0);
+  });
+
+  it('keeps the interview times in step with adds, date changes and removes', async () => {
+    const created = await opportunity();
+    const before = await opp(created.id);
+    const first = parse(await add(created.id, { heldAt: '2026-10-10T12:00:00.000Z' }));
+    const a = first.interviews[0]?.id as string;
+    const second = parse(await add(created.id, { heldAt: '2026-10-25T12:00:00.000Z' }));
+    const b = second.interviews.find((i) => i.id !== a)?.id as string;
+
+    expect(second.interviewTimes).toEqual(['2026-10-10T12:00:00.000Z', '2026-10-25T12:00:00.000Z']);
+    expect(await times(created.id)).toEqual({
+      [a]: '2026-10-10T12:00:00.000Z',
+      [b]: '2026-10-25T12:00:00.000Z',
+    });
+
+    const moved = parse(await edit(created.id, b, { heldAt: '2026-10-05T12:00:00.000Z' }));
+    expect(moved.interviewTimes).toEqual(['2026-10-05T12:00:00.000Z', '2026-10-10T12:00:00.000Z']);
+
+    // An edit that keeps the date leaves the times, and the opportunity, alone.
+    clock = new Date('2026-10-21T15:00:00.000Z');
+    await edit(created.id, a, { note: 'Panel' });
+    expect(await times(created.id)).toEqual({
+      [a]: '2026-10-10T12:00:00.000Z',
+      [b]: '2026-10-05T12:00:00.000Z',
+    });
+    expect((await opp(created.id))?.updatedAt).toBe('2026-10-20T15:00:00.000Z');
+
+    await remove(created.id, a);
+    expect(await times(created.id)).toEqual({ [b]: '2026-10-05T12:00:00.000Z' });
+
+    const after = await opp(created.id);
+    for (const field of ['stage', 'status', 'lastStageChangeAt', 'changeCount']) {
+      expect(after?.[field]).toEqual(before?.[field]);
+    }
+  });
+
+  it('lists the interview times on the board, sorted', async () => {
+    const created = await opportunity();
+    await add(created.id, { heldAt: '2026-10-25T12:00:00.000Z' });
+    await add(created.id, { heldAt: '2026-10-08T12:00:00.000Z' });
+
+    const list = parse(await handle(apiEvent('GET', '/opportunities'))) as unknown as {
+      items: { id: string; interviewTimes?: string[] }[];
+    };
+
+    expect(list.items.find((o) => o.id === created.id)?.interviewTimes).toEqual([
+      '2026-10-08T12:00:00.000Z',
+      '2026-10-25T12:00:00.000Z',
+    ]);
+  });
+
+  // As an opportunity looked before feature 012: interviews and a count, but no times.
+  async function older() {
+    const created = await opportunity();
+    await add(created.id, { heldAt: '2026-10-05T12:00:00.000Z' });
+    const two = parse(await add(created.id, { heldAt: '2026-10-06T12:00:00.000Z' }));
+    await docs.send(
+      new UpdateCommand({
+        TableName: config.tableName,
+        Key: { PK: `OPP#${created.id}`, SK: 'OPP' },
+        UpdateExpression: 'REMOVE interviewTimes',
+      }),
+    );
+    expect(await times(created.id)).toBeUndefined();
+    return { id: created.id, ids: two.interviews.map((i) => i.id) };
+  }
+
+  async function expectTimesMatchInterviews(id: string) {
+    const stored = (await times(id)) as Record<string, string>;
+    const saved = await interviewItems(id);
+    expect(Object.keys(stored).sort()).toEqual(saved.map((i) => i.id as string).sort());
+    for (const item of saved) {
+      expect(stored[item.id as string]).toBe(item.heldAt);
+    }
+  }
+
+  it('gives an older opportunity no times until its first interview change', async () => {
+    const { id } = await older();
+
+    const fetched = parse(await handle(apiEvent('GET', `/opportunities/${id}`)));
+
+    expect(fetched).not.toHaveProperty('interviewTimes');
+    expect(fetched.interviewCount).toBe(2);
+  });
+
+  it.each([
+    ['an edit', (id: string, ids: string[]) => edit(id, ids[0] as string, { note: 'x' })],
+    ['an add', (id: string) => add(id, { heldAt: '2026-10-07T12:00:00.000Z' })],
+    ['a remove', (id: string, ids: string[]) => remove(id, ids[1] as string)],
+  ])("starts an older opportunity's times on %s", async (_label, change) => {
+    const { id, ids } = await older();
+
+    expect((await change(id, ids)).statusCode).toBeLessThan(300);
+
+    await expectTimesMatchInterviews(id);
+  });
+
+  it('starts the times correctly when two changes run at once', async () => {
+    const { id, ids } = await older();
+
+    const results = await Promise.all([
+      add(id, { heldAt: '2026-10-07T12:00:00.000Z' }),
+      edit(id, ids[0] as string, { heldAt: '2026-10-04T12:00:00.000Z' }),
+    ]);
+
+    expect(results.map((r) => r.statusCode)).toEqual([201, 200]);
+    await expectTimesMatchInterviews(id);
   });
 });

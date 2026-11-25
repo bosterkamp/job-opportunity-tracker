@@ -64,11 +64,11 @@ describe('interview input', () => {
   });
 
   it('rejects unknown fields', () => {
-    expect(issuesFor(InterviewInputSchema.safeParse({ kind: 'Panel' }))).toEqual([
-      { path: '', message: 'Unknown field: kind' },
+    expect(issuesFor(InterviewInputSchema.safeParse({ type: 'Panel' }))).toEqual([
+      { path: '', message: 'Unknown field: type' },
     ]);
-    expect(issuesFor(InterviewPatchSchema.safeParse({ kind: 'Panel' }))).toEqual([
-      { path: '', message: 'Unknown field: kind' },
+    expect(issuesFor(InterviewPatchSchema.safeParse({ type: 'Panel' }))).toEqual([
+      { path: '', message: 'Unknown field: type' },
     ]);
   });
 });
@@ -115,34 +115,39 @@ describe('the rules', () => {
   it('allows at most 6 interviews, with the messages from the data model', () => {
     expect(MAX_INTERVIEWS).toBe(6);
     expect(INTERVIEW_MESSAGES).toEqual({
-      FUTURE: "The date can't be in the future",
+      TOO_FAR_AHEAD: "An interview can't be more than a year ahead",
       BEFORE_DATE_ADDED: "An interview can't be before the date added",
       LIMIT: 'This opportunity already has 6 interviews, the most it can have',
       NOT_FOUND: 'Interview not found',
+      TOO_MANY_INTERVIEWERS: 'An interview can have at most 10 interviewers',
+      LINKEDIN: 'Enter a LinkedIn profile address',
     });
   });
 
   const now = new Date('2026-10-20T15:00:00.000Z');
   const createdAt = '2026-09-01T12:00:00.000Z';
 
-  it('accepts now, up to a minute of clock skew, and the moment it was added', () => {
+  it('accepts now, the moment it was added, and up to a year ahead (feature 012)', () => {
     expect(interviewDateProblem(now.toISOString(), now, createdAt)).toBeUndefined();
-    expect(interviewDateProblem('2026-10-20T15:01:00.000Z', now, createdAt)).toBeUndefined();
     expect(interviewDateProblem(createdAt, now, createdAt)).toBeUndefined();
+    expect(interviewDateProblem('2026-10-21T15:00:00.000Z', now, createdAt)).toBeUndefined();
+    expect(interviewDateProblem('2027-10-20T15:00:00.000Z', now, createdAt)).toBeUndefined();
   });
 
-  it('refuses the future, and a date before the date added', () => {
-    expect(interviewDateProblem('2026-10-20T15:01:00.001Z', now, createdAt)).toBe(
-      "The date can't be in the future",
-    );
+  it('refuses more than a year ahead, and a date before the date added', () => {
+    for (const heldAt of ['2027-10-20T15:00:00.001Z', '2027-10-21T15:00:00.000Z']) {
+      expect(interviewDateProblem(heldAt, now, createdAt)).toBe(
+        "An interview can't be more than a year ahead",
+      );
+    }
     expect(interviewDateProblem('2026-09-01T11:59:59.999Z', now, createdAt)).toBe(
       "An interview can't be before the date added",
     );
   });
 
-  it('checks the future first', () => {
-    expect(interviewDateProblem('2027-01-01T00:00:00.000Z', now, '2027-06-01T00:00:00.000Z')).toBe(
-      INTERVIEW_MESSAGES.FUTURE,
+  it('checks the year ahead first', () => {
+    expect(interviewDateProblem('2028-01-01T00:00:00.000Z', now, '2028-06-01T00:00:00.000Z')).toBe(
+      INTERVIEW_MESSAGES.TOO_FAR_AHEAD,
     );
   });
 });
@@ -152,9 +157,9 @@ describe('interviewCountText', () => {
     [undefined, undefined],
     [null, undefined],
     [0, undefined],
-    [1, '1 interview'],
-    [2, '2 interviews'],
-    [6, '6 interviews'],
+    [1, '1 completed interview'],
+    [2, '2 completed interviews'],
+    [6, '6 completed interviews'],
   ])('shows %s as %j', (count, text) => {
     expect(interviewCountText(count)).toBe(text);
   });
@@ -176,14 +181,19 @@ describe('timeline', () => {
     recordedAt,
   });
 
+  const now = new Date('2026-11-01T00:00:00.000Z');
+
   it('merges stage changes and interviews, oldest first', () => {
-    const entries = timeline({
-      history: [change(1, '2026-10-01T12:00:00.000Z'), change(2, '2026-10-10T12:00:00.000Z')],
-      interviews: [
-        interview('b', '2026-10-12T12:00:00.000Z'),
-        interview('a', '2026-10-05T12:00:00.000Z'),
-      ],
-    });
+    const entries = timeline(
+      {
+        history: [change(1, '2026-10-01T12:00:00.000Z'), change(2, '2026-10-10T12:00:00.000Z')],
+        interviews: [
+          interview('b', '2026-10-12T12:00:00.000Z'),
+          interview('a', '2026-10-05T12:00:00.000Z'),
+        ],
+      },
+      now,
+    );
 
     expect(
       entries.map((e) => (e.kind === 'stage' ? `stage ${e.change.seq}` : e.interview.id)),
@@ -198,20 +208,26 @@ describe('timeline', () => {
 
   it('orders entries on the same moment by when they were recorded', () => {
     const at = '2026-10-05T12:00:00.000Z';
-    const entries = timeline({
-      history: [change(2, at, '2026-10-06T00:00:00.000Z')],
-      interviews: [interview('early', at, '2026-10-05T13:00:00.000Z')],
-    });
+    const entries = timeline(
+      {
+        history: [change(2, at, '2026-10-06T00:00:00.000Z')],
+        interviews: [interview('early', at, '2026-10-05T13:00:00.000Z')],
+      },
+      now,
+    );
 
     expect(entries.map((e) => e.kind)).toEqual(['interview', 'stage']);
   });
 
   it('keeps the history order for entries recorded at the same moment', () => {
     const at = '2026-10-05T12:00:00.000Z';
-    const entries = timeline({
-      history: [change(1, at), change(2, at)],
-      interviews: [interview('i', at)],
-    });
+    const entries = timeline(
+      {
+        history: [change(1, at), change(2, at)],
+        interviews: [interview('i', at)],
+      },
+      now,
+    );
 
     expect(entries.map((e) => (e.kind === 'stage' ? e.change.seq : e.interview.id))).toEqual([
       1,
@@ -221,6 +237,24 @@ describe('timeline', () => {
   });
 
   it('gives just the stage changes when there are no interviews', () => {
-    expect(timeline({ history: [change(1, '2026-10-01T12:00:00.000Z')] })).toHaveLength(1);
+    expect(timeline({ history: [change(1, '2026-10-01T12:00:00.000Z')] }, now)).toHaveLength(1);
+  });
+
+  it('leaves out upcoming interviews; one at exactly now is past (feature 012)', () => {
+    const entries = timeline(
+      {
+        history: [change(1, '2026-10-01T12:00:00.000Z')],
+        interviews: [
+          interview('now', now.toISOString()),
+          interview('later', '2026-11-01T00:00:00.001Z', '2026-10-20T00:00:00.000Z'),
+        ],
+      },
+      now,
+    );
+
+    expect(entries.map((e) => (e.kind === 'stage' ? 'stage' : e.interview.id))).toEqual([
+      'stage',
+      'now',
+    ]);
   });
 });

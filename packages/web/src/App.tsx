@@ -7,8 +7,13 @@ import { AuthProvider } from './auth/AuthProvider';
 import { Layout } from './components/Layout';
 import { ConfigContext, type AppConfig } from './config';
 import { ArchivePage } from './pages/Archive';
+import { CompareOffersPage } from './pages/CompareOffers';
+import { EditOfferPage } from './pages/EditOffer';
+import { InterviewDetailPage } from './pages/InterviewDetail';
 import { LeadsPage } from './pages/Leads';
+import { NewInterviewPage } from './pages/NewInterview';
 import { NewOpportunityPage } from './pages/NewOpportunity';
+import { OffersPage } from './pages/Offers';
 import { OpportunityDetailPage } from './pages/OpportunityDetail';
 import { OverviewPage } from './pages/Overview';
 import { NotFoundPage } from './pages/NotFound';
@@ -20,8 +25,13 @@ export function AppRoutes() {
         <Route index element={<OverviewPage />} />
         <Route path="archive" element={<ArchivePage />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="offers" element={<OffersPage />} />
+        <Route path="offers/compare" element={<CompareOffersPage />} />
         <Route path="opportunities/new" element={<NewOpportunityPage />} />
         <Route path="opportunities/:id" element={<OpportunityDetailPage />} />
+        <Route path="opportunities/:id/offer" element={<EditOfferPage />} />
+        <Route path="opportunities/:id/interviews/new" element={<NewInterviewPage />} />
+        <Route path="opportunities/:id/interviews/:interviewId" element={<InterviewDetailPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

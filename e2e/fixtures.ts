@@ -127,6 +127,42 @@ export async function addLeadNote(
   expect(response.status()).toBe(201);
 }
 
+// Adds an interview to an opportunity through the local API (feature 012's fields allowed).
+export async function addInterview(
+  request: APIRequestContext,
+  opportunityId: string,
+  interview: Record<string, unknown> = {},
+): Promise<void> {
+  const response = await request.post(`${API_URL}/opportunities/${opportunityId}/interviews`, {
+    data: interview,
+  });
+  expect(response.status()).toBe(201);
+}
+
+// Records or changes an opportunity's offer through the local API (feature 013).
+export async function addOffer(
+  request: APIRequestContext,
+  opportunityId: string,
+  offer: Record<string, unknown> = {},
+): Promise<void> {
+  const response = await request.patch(`${API_URL}/opportunities/${opportunityId}/offer`, {
+    data: offer,
+  });
+  expect(response.status()).toBe(200);
+}
+
+// Scores an offer's details through the local API (feature 013).
+export async function scoreOffer(
+  request: APIRequestContext,
+  opportunityId: string,
+  scores: Record<string, number | null>,
+): Promise<void> {
+  const response = await request.patch(`${API_URL}/opportunities/${opportunityId}/offer/scores`, {
+    data: { scores },
+  });
+  expect(response.status()).toBe(200);
+}
+
 // Opens an opportunity from the overview by its company name.
 export async function openOpportunity(page: Page, company: string): Promise<void> {
   await page.goto('/');
@@ -202,6 +238,17 @@ export function browserDateDaysAgo(
       shown: new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(date),
     };
   }, daysAgo);
+}
+
+// A moment with its time as the app shows it (feature 012), in the browser's locale and zone.
+export function shownDateTime(page: Page, iso: string): Promise<string> {
+  return page.evaluate(
+    (at) =>
+      new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
+        new Date(at),
+      ),
+    iso,
+  );
 }
 
 // Today's date as the app shows it, using the browser's own locale and time zone.

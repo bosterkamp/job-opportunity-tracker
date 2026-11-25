@@ -6,6 +6,11 @@ import { OpportunityCard } from '../components/OpportunityCard';
 import { QueryState } from '../components/QueryState';
 import { StageBoard } from '../components/StageBoard';
 import {
+  CompareBar,
+  CompareCheckbox,
+  useCompareSelection,
+} from '../features/offers/compareSelection';
+import {
   OVERVIEW_DEFAULTS,
   readListParams,
   writeListParams,
@@ -83,6 +88,8 @@ function Board({
   // Counted only in the groups shown.
   const hiddenWithoutSalary = filtered.reduce((n, { paid }) => n + paid.hiddenWithoutSalary, 0);
   const nothingShown = groups.every((group) => group.items.length === 0);
+  // Offers ticked to compare (feature 013), on this page only.
+  const selection = useCompareSelection();
 
   return (
     <>
@@ -113,9 +120,22 @@ function Board({
             o.status === 'CLOSED' ? (
               <OpportunityCard opportunity={o} showStage />
             ) : (
-              <OpportunityCard opportunity={o} showMove />
+              <OpportunityCard
+                opportunity={o}
+                showMove
+                compare={
+                  o.stage === 'OFFER' && (
+                    <CompareCheckbox
+                      selection={selection}
+                      id={o.id}
+                      name={`${o.company}, ${o.title}`}
+                    />
+                  )
+                }
+              />
             )
           }
+          groupActions={(group) => group.key === 'OFFER' && <CompareBar selection={selection} />}
         />
       )}
     </>

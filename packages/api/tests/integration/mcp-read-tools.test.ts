@@ -100,6 +100,7 @@ describe('the read tools', () => {
             salaryMin: 150_000,
             salaryMax: 180_000,
             interviewCount: 0,
+            nextInterviewAt: null,
             lastStageChangeAt: '2026-10-05T12:00:00.000Z',
             followUpDate: null,
             postedUntil: null,
@@ -114,6 +115,7 @@ describe('the read tools', () => {
             salaryMin: null,
             salaryMax: null,
             interviewCount: 0,
+            nextInterviewAt: null,
             lastStageChangeAt: '2026-10-02T12:00:00.000Z',
             followUpDate: null,
             postedUntil: null,
@@ -209,7 +211,15 @@ describe('the read tools', () => {
         (await t.route(apiEvent('GET', `/opportunities/${a.id}`, { sub: 'owner-sub' }))).body ?? '',
       ) as Json;
 
-      expect(result.structuredContent).toEqual({ ...web, lead: null });
+      // With no offer, the offer's fields are empty (feature 013).
+      expect(result.structuredContent).toEqual({
+        ...web,
+        lead: null,
+        offer: null,
+        offerScores: null,
+        offerOverall: null,
+        offerHistory: [],
+      });
       expect(result.structuredContent).toMatchObject({ location: 'Austin', notes: 'Call back' });
       expect((result.structuredContent?.history as Json[]).map((h) => h.toStage)).toEqual([
         'CONSIDERING',
@@ -314,7 +324,9 @@ describe('the read tools', () => {
           description:
             'Gets one opportunity with every detail and its full stage history, oldest first. ' +
             'History entries with via "CLAUDE" were made through Claude. changeCount is needed to ' +
-            'move it to another stage. lead is the networking lead it came through, or null.',
+            'move it to another stage. lead is the networking lead it came through, or null. offer ' +
+            'is its offer (custom fields by name), with offerScores (0 not offered, 1 worst to 5 ' +
+            'best), offerOverall (their average) and offerHistory (each saved change, oldest first).',
         },
         {
           name: 'list_leads',
@@ -324,6 +336,15 @@ describe('the read tools', () => {
             'the opportunities linked to it and its notes from conversations, newest first. Use ' +
             "a lead's id as leadId in add_opportunity or update_opportunity, and as lead_id in " +
             'add_lead_note.',
+        },
+        {
+          name: 'list_offers',
+          title: 'List offers',
+          description:
+            'Lists every opportunity with an offer, or in the Offer stage, open ones first, each ' +
+            'with its offer (custom fields by name), its scores (0 not offered, 1 worst to 5 best) ' +
+            'and its overall score, the average of its scores. fields are the custom fields every ' +
+            'offer shares. Use it to compare offers.',
         },
       ]);
     } finally {
@@ -355,6 +376,7 @@ describe('the read tools', () => {
         'find_opportunities',
         'get_opportunity',
         'list_leads',
+        'list_offers',
       ]);
       for (const tool of tools) {
         expect(tool.annotations).toMatchObject({ readOnlyHint: true, openWorldHint: false });

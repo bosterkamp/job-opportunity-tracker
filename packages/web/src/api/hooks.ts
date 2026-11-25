@@ -2,6 +2,7 @@ import {
   LeadNoteSchema,
   LeadSchema,
   LeadWithOpportunitiesSchema,
+  OfferFieldsSchema,
   OpportunitySchema,
   PostingDetailsSchema,
   OpportunityWithHistorySchema,
@@ -11,11 +12,13 @@ import {
   type LeadNoteInput,
   type LeadNotePatch,
   type LeadPatch,
+  type OfferFieldsPatch,
+  type OfferInput,
   type OpportunityInput,
   type OpportunityPatch,
   type OpportunityStatus,
 } from '@jot/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import type { StageMove } from '../components/MoveStageMenu';
 import { useApiClient } from './ApiClientProvider';
@@ -31,6 +34,8 @@ export const queryKeys = {
   details: ['opportunity'] as const,
   // Networking leads, each with its linked opportunities (feature 010).
   leads: ['leads'] as const,
+  // The custom fields every offer shares (feature 013).
+  offerFields: ['offerFields'] as const,
 };
 
 export function useOpportunities(status: OpportunityStatus) {
@@ -50,6 +55,21 @@ export function useOpportunity(id: string) {
       api.request('GET', `/opportunities/${encodeURIComponent(id)}`, {
         schema: OpportunityWithHistorySchema,
       }),
+  });
+}
+
+// Several opportunities at once, for the offer comparison (feature 013), sharing the cache
+// with each opportunity's own page.
+export function useOpportunitiesById(ids: readonly string[]) {
+  const api = useApiClient();
+  return useQueries({
+    queries: ids.map((id) => ({
+      queryKey: queryKeys.detail(id),
+      queryFn: () =>
+        api.request('GET', `/opportunities/${encodeURIComponent(id)}`, {
+          schema: OpportunityWithHistorySchema,
+        }),
+    })),
   });
 }
 
@@ -171,6 +191,63 @@ export function useRemoveInterview(id: string) {
     path: `${interviewsPath(id)}/${encodeURIComponent(interviewId)}`,
     headers: { 'x-confirm-delete': 'true' },
   }));
+}
+
+// An opportunity's offer (feature 013). Each change answers with the opportunity as it now
+// is, as interview changes do.
+const offerPath = (id: string) => `/opportunities/${encodeURIComponent(id)}/offer`;
+
+export function useSaveOffer(id: string) {
+  return useInterviewChange(id, (input: OfferInput) => ({
+    method: 'PATCH',
+    path: offerPath(id),
+    body: input,
+  }));
+}
+
+export function useRemoveOffer(id: string) {
+  // The API refuses to remove it without this header, as for interviews.
+  return useInterviewChange(id, () => ({
+    method: 'DELETE',
+    path: offerPath(id),
+    headers: { 'x-confirm-delete': 'true' },
+  }));
+}
+
+export function useSetOfferScores(id: string) {
+  return useInterviewChange(id, (scores: Record<string, number | null>) => ({
+    method: 'PATCH',
+    path: `${offerPath(id)}/scores`,
+    body: { scores },
+  }));
+}
+
+export function useOfferFields() {
+  const api = useApiClient();
+  return useQuery({
+    queryKey: queryKeys.offerFields,
+    queryFn: () => api.request('GET', '/offer-fields', { schema: OfferFieldsSchema }),
+  });
+}
+
+export function useSaveOfferFields() {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  return useMutation({
+    // Dropping a field is confirmed first, in the page; the API asks for the header.
+    mutationFn: ({ patch, confirmRemove }: { patch: OfferFieldsPatch; confirmRemove?: boolean }) =>
+      api.request('PATCH', '/offer-fields', {
+        body: patch,
+        headers: confirmRemove ? { 'x-confirm-delete': 'true' } : undefined,
+        schema: OfferFieldsSchema,
+      }),
+    onSuccess: (fields) => queryClient.setQueryData(queryKeys.offerFields, fields),
+    onError: async (error) => {
+      if (error instanceof ApiError && error.status === 409) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.offerFields });
+      }
+    },
+  });
 }
 
 // Reads a posting link to fill the add form (feature 002). Nothing is stored.

@@ -10,7 +10,7 @@ import { ConfigContext } from '../src/config';
 
 export const API = 'http://api.test';
 
-type Reply = (request: { body: unknown }) => Response | Promise<Response>;
+type Reply = (request: { body: unknown; headers: Headers }) => Response | Promise<Response>;
 
 export const jsonResponse = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -31,7 +31,7 @@ export function mockApi(routes: Record<string, Reply>) {
       return jsonResponse(404, { code: 'NOT_FOUND', message: `No mock for ${key}` });
     }
     const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as unknown) : undefined;
-    return reply({ body });
+    return reply({ body, headers: new Headers(init?.headers) });
   });
 }
 

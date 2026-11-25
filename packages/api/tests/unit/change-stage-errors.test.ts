@@ -6,6 +6,7 @@ import {
   TransactionCanceledException,
 } from '@aws-sdk/client-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
+import type { OpportunityWithHistory } from '@jot/shared';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../src/http.js';
 import { CONFLICT_MESSAGE, createOpportunityRepo } from '../../src/repo/opportunityRepo.js';
@@ -121,9 +122,18 @@ describe('interview failures', () => {
   it('reports a missing interview on editing and removing as false', async () => {
     const missing = new ConditionalCheckFailedException({ message: 'no', $metadata: {} });
 
-    await expect(repoFailingWith(missing).updateInterview('id', 'i1', { note: 'x' })).resolves.toBe(
-      false,
-    );
+    await expect(
+      repoFailingWith(missing).updateInterview('id', 'i1', { note: 'x' }, now),
+    ).resolves.toBe(false);
+    // A new date is a transaction with the opportunity (feature 012).
+    await expect(
+      repoFailingWith(cancelled(['ConditionalCheckFailed', 'None'])).updateInterview(
+        'id',
+        'i1',
+        { heldAt: now },
+        now,
+      ),
+    ).resolves.toBe(false);
     await expect(
       repoFailingWith(cancelled(['ConditionalCheckFailed', 'None'])).removeInterview(
         'id',
@@ -137,14 +147,55 @@ describe('interview failures', () => {
     await expect(repoFailingWith(unrelated).addInterview('id', interview, now)).rejects.toBe(
       unrelated,
     );
-    await expect(repoFailingWith(unrelated).updateInterview('id', 'i1', {})).rejects.toBe(
+    await expect(repoFailingWith(unrelated).updateInterview('id', 'i1', {}, now)).rejects.toBe(
       unrelated,
     );
+    await expect(
+      repoFailingWith(unrelated).updateInterview('id', 'i1', { heldAt: now }, now),
+    ).rejects.toBe(unrelated);
     await expect(repoFailingWith(unrelated).removeInterview('id', 'i1', now)).rejects.toBe(
       unrelated,
     );
     const other = cancelled(['None', 'ValidationError']);
     await expect(repoFailingWith(other).addInterview('id', interview, now)).rejects.toBe(other);
     await expect(repoFailingWith(other).removeInterview('id', 'i1', now)).rejects.toBe(other);
+    await expect(
+      repoFailingWith(other).updateInterview('id', 'i1', { heldAt: now }, now),
+    ).rejects.toBe(other);
+  });
+
+  // Feature 012: starting an older opportunity's interview times.
+  const older = {
+    id: 'id',
+    company: 'Acme',
+    title: 'Engineer',
+    stage: 'APPLIED',
+    status: 'OPEN',
+    createdAt: now,
+    updatedAt: now,
+    lastStageChangeAt: now,
+    changeCount: 2,
+    interviewCount: 1,
+    history: [],
+    interviews: [interview],
+  } satisfies OpportunityWithHistory;
+
+  it('ignores the times having been started by another change', async () => {
+    const started = new ConditionalCheckFailedException({ message: 'no', $metadata: {} });
+
+    await expect(repoFailingWith(started).startInterviewTimes(older)).resolves.toBeUndefined();
+  });
+
+  it('passes any other failure to start the times through', async () => {
+    await expect(repoFailingWith(unrelated).startInterviewTimes(older)).rejects.toBe(unrelated);
+  });
+
+  it("doesn't write the times when they're already there", async () => {
+    const send = vi.fn();
+    const repo = createOpportunityRepo({ send } as unknown as DynamoDBDocumentClient, 'T');
+
+    await repo.startInterviewTimes({ ...older, interviewTimes: [] });
+
+    expect(send).not.toHaveBeenCalled();
   });
 });

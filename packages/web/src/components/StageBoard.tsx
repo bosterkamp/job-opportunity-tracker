@@ -14,18 +14,16 @@ import styles from './StageBoard.module.css';
 interface StageBoardProps {
   groups: BoardGroup[];
   renderCard: (opportunity: Opportunity) => ReactNode;
+  // Shown under a group's heading: "Compare N" on the Offer column (feature 013).
+  groupActions?: (group: BoardGroup) => ReactNode;
 }
 
 // The overview's layout (spec US3): at 1280 px and wider, one column per stage and a last one
 // for closed opportunities; narrower, a tab for each with its cards below. Each shows how many
 // it holds.
-export function StageBoard({ groups, renderCard }: StageBoardProps) {
+export function StageBoard(props: StageBoardProps) {
   const wide = useMediaQuery(WIDE_QUERY);
-  return wide ? (
-    <Columns groups={groups} renderCard={renderCard} />
-  ) : (
-    <Tabs groups={groups} renderCard={renderCard} />
-  );
+  return wide ? <Columns {...props} /> : <Tabs {...props} />;
 }
 
 function CardList({
@@ -51,7 +49,7 @@ function CardList({
   );
 }
 
-function Columns({ groups, renderCard }: StageBoardProps) {
+function Columns({ groups, renderCard, groupActions }: StageBoardProps) {
   const id = useId();
   return (
     <div
@@ -65,6 +63,7 @@ function Columns({ groups, renderCard }: StageBoardProps) {
             {group.label}
             <span className={styles.count}>{group.items.length}</span>
           </h3>
+          {groupActions?.(group)}
           <CardList group={group} renderCard={renderCard} />
         </section>
       ))}
@@ -72,7 +71,7 @@ function Columns({ groups, renderCard }: StageBoardProps) {
   );
 }
 
-function Tabs({ groups, renderCard }: StageBoardProps) {
+function Tabs({ groups, renderCard, groupActions }: StageBoardProps) {
   const id = useId();
   const [chosen, setChosen] = useState<BoardKey | null>(null);
   const tabRefs = useRef(new Map<BoardKey, HTMLButtonElement>());
@@ -119,6 +118,7 @@ function Tabs({ groups, renderCard }: StageBoardProps) {
         })}
       </div>
       <div role="tabpanel" id={`${id}-panel`} aria-labelledby={`${id}-tab-${selected.key}`}>
+        {groupActions?.(selected)}
         <CardList group={selected} renderCard={renderCard} />
       </div>
     </>

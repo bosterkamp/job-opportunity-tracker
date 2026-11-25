@@ -34,6 +34,15 @@
   --color-danger: #b54708;
   --color-focus: #0e7490;
 
+  /* Offer scores (feature 013), behind --color-text: 0 grey ("Not offered"), then red (1, worst)
+     to green (5, best). Each keeps the text at 4.5:1 or more (tests/score-colors.test.ts). */
+  --score-0: #e4e1e8;
+  --score-1: #f7c4c4;
+  --score-2: #fbd5ad;
+  --score-3: #f8ec9c;
+  --score-4: #d3edb2;
+  --score-5: #9ed6a6;
+
   /* The banner (feature 008): the icon's colours, the same in light and dark mode. */
   --banner-sky: #140230;
   --banner-sky-mid: #5b1683;
@@ -59,6 +68,12 @@
     --color-accent-text: #12002a;
     --color-danger: #ffb547;
     --color-focus: #00f0ff;
+    --score-0: #3a3445;
+    --score-1: #6e1f2b;
+    --score-2: #6e3a12;
+    --score-3: #5a4c0b;
+    --score-4: #3b5a1b;
+    --score-5: #1b5c33;
   }
 }
 

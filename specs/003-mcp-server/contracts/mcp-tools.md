@@ -23,6 +23,9 @@ are `destructiveHint: false` (nothing is deleted) and `idempotentHint: false`.
 | `list_leads` | Networking leads, with their opportunities (feature 010) | 010 FR-009 |
 | `add_lead`, `update_lead` | Add or change a networking lead (feature 010) | 010 FR-009 |
 | `add_lead_note`, `update_lead_note` | Add or change a note on a lead (feature 011) | 011 FR-006 |
+| `list_offers` | Every offer, with its scores and overall, and the custom fields (feature 013) | 013 FR-014 |
+| `update_offer`, `score_offer` | Record or change an offer, and score it (feature 013) | 013 FR-014 |
+| `add_offer_field`, `rename_offer_field` | Add or rename a custom offer field (feature 013) | 013 FR-014 |
 
 There is deliberately no delete tool (FR-014).
 
@@ -36,7 +39,7 @@ There is deliberately no delete tool (FR-014).
 | `offset` | ≥ 0 | 0 |
 
 Output: `{ total, offset, items: [{ id, company, title, stage, interest, salaryMin, salaryMax, interviewCount,
-lastStageChangeAt, followUpDate, postedUntil }] }` (salary added in feature 004, the interview count in 005, the date the posting is up until in 009), most recent stage change first. `follow_up_due` is open opportunities with
+nextInterviewAt, lastStageChangeAt, followUpDate, postedUntil }] }` (salary added in feature 004, the interview count in 005, the date the posting is up until in 009; since feature 012 `interviewCount` is the number that have happened, and `nextInterviewAt` the next upcoming one or `null`), most recent stage change first. `follow_up_due` is open opportunities with
 `followUpDate` on or before today (UTC date, the server has no browser time zone; noted in the
 description).
 
@@ -56,9 +59,12 @@ Output: the same item shape, plus `status`.
 | `id` | the opportunity id |
 
 Output: the web API's opportunity with history (`GET /opportunities/{id}`), including each
-entry's `via`. Feature 010 adds `lead`: `{ id, name, email, phone }` (`null` for a missing email
+entry's `via`. Since feature 012 each interview has its details, its interviewers, and
+`upcoming: true` or `false`. Feature 010 adds `lead`: `{ id, name, email, phone }` (`null` for a missing email
 or phone) for the networking lead it's linked to, or `null`; a link to a lead that's gone reads
-as `null`. Errors: `NOT_FOUND`.
+as `null`. Feature 013 adds `offer` (custom values by field name), `offerScores` (custom fields
+by name), `offerOverall` and `offerHistory` (each change's field by name, a removed field's as
+"{name} (removed)"); with no offer they're `null`, `null`, `null` and `[]`. Errors: `NOT_FOUND`.
 
 ## `read_posting`
 
@@ -111,11 +117,27 @@ Nothing is saved; the description tells Claude to show the details before adding
 
 ## `add_interview` and `update_interview` (feature 005)
 
-Log an interview the owner has had, or change one's date or note, through
+Add an interview, past or upcoming, or change one, through
 `POST /opportunities/{id}/interviews` and `PATCH /opportunities/{id}/interviews/{interviewId}`
 with `via: CLAUDE`. Each takes one from the change limit. There is no tool to remove an
 interview: that's deleting data, which only the web app does. Inputs, descriptions, and errors
 are in [feature 005's changes](../../005-interview-count/contracts/mcp-tools-changes.md).
+
+Feature 012 ([its changes](../../012-interview-details/contracts/changes.md)):
+
+| Input | Type |
+|---|---|
+| `held_at` | ISO date-time, at most a year ahead; defaults to now |
+| `note` | a short note (`null` clears it on a change) |
+| `kind` | `HR`, `HIRING_MANAGER`, `BUSINESS`, `ENGINEERING`, `OTHER` |
+| `panel` | boolean |
+| `format` | `PHONE`, `VIDEO`, `IN_PERSON` |
+| `outcome` | `WENT_WELL`, `NOT_SURE`, `WENT_BADLY`; the description says to set it only after the interview |
+| `next_steps` | text, up to 500 characters |
+| `interviewers` | up to 10 `{ name, title?, email?, phone?, linkedin? }`; on a change it replaces the list |
+
+On `update_interview`, `null` clears any of them. Both answer with the opportunity, each
+interview marked `upcoming: true` or `false`, as `get_opportunity` does.
 
 ## Networking leads (feature 010)
 
@@ -146,3 +168,22 @@ the change limit. There is no tool to delete a note: only the web app does.
 
 Errors: `VALIDATION_ERROR` ("Write a note", "A note can't be dated in the future", the limit of
 200), `NOT_FOUND` ("Lead not found", "Note not found"), `RATE_LIMITED`.
+
+## Offers (feature 013)
+
+An opportunity's offer, the owner's 0–5 scores for it, and the custom fields every offer shares
+([feature 013's changes](../../013-offer-comparison/contracts/changes.md)). Claude names custom
+fields, not their ids, regardless of case. The change tools take one each from the change
+limit, and changes are marked `via: "CLAUDE"` in the offer's history. There is no tool to
+remove an offer or a custom field: only the web app does.
+
+| Tool | Input | Output |
+|---|---|---|
+| `list_offers` (read) | none | `{ fields: [name], items: [{ id, company, title, stage, status, offer, scores, overall }] }`: every opportunity with an offer or in the Offer stage, open first; `offer`, `scores` and `overall` are `null` without an offer |
+| `update_offer` | `opportunity_id`, any of `base_salary`, `bonus_percent`, `sign_on_bonus`, `equity`, `retirement`, `insurance`, `location`, `work_arrangement`, `title`, `role`, `pto`, `leadership`, `culture`, `start_date`, `respond_by` (`null` clears one; amounts may be `"170k"`), and `custom: { name: text \| null }` | the opportunity, as `get_opportunity` gives it; the first call adds the offer |
+| `score_offer` | `opportunity_id`, `scores: { detail or custom field name: 0–5 \| null }` | the opportunity, as `get_opportunity` gives it |
+| `add_offer_field` | `name` | `{ fields: [name] }` |
+| `rename_offer_field` | `name`, `new_name` | `{ fields: [name] }` |
+
+Errors: `VALIDATION_ERROR` (the web app's messages, and "Unknown custom field: {name}"),
+`NOT_FOUND`, `CONFLICT` (another change got there first), `RATE_LIMITED`.

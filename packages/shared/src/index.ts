@@ -4,6 +4,7 @@ export * from './duplicates.js';
 export * from './imports.js';
 export * from './interviews.js';
 export * from './leadNotes.js';
+export * from './offers.js';
 export * from './salary.js';
 export * from './schemas.js';
 export * from './stages.js';

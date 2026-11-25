@@ -66,6 +66,14 @@
   margin: 0;
 }
 
+/* The next upcoming interview (feature 012), in the accent colour like the count. */
+.nextInterview {
+  margin: 0;
+  color: var(--color-accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
 .meta {
   display: flex;
   flex-wrap: wrap;

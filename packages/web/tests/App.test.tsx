@@ -59,6 +59,7 @@ describe('Layout', () => {
     ).toEqual([
       ['Overview', '/'],
       ['Networking leadsLeads', '/leads'],
+      ['Offers', '/offers'],
       ['Archive', '/archive'],
     ]);
     expect(screen.getByRole('link', { name: 'Add opportunity' })).toHaveAttribute(

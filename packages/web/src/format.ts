@@ -5,6 +5,13 @@ export function formatDate(iso: string, locale?: string): string {
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium' }).format(new Date(iso));
 }
 
+// A moment with its time, for interviews (feature 012): "Nov 12, 2026, 2:00 PM".
+export function formatDateTime(iso: string, locale?: string): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short' }).format(
+    new Date(iso),
+  );
+}
+
 // A calendar date with no time (YYYY-MM-DD, like followUpDate). Formatted in UTC so it never
 // shifts by a day in time zones behind UTC.
 export function formatCalendarDate(ymd: string, locale?: string): string {

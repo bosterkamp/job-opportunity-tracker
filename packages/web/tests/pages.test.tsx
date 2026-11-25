@@ -511,7 +511,7 @@ describe('Archive', { tags: ['overview'] }, () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(screen.queryByText('Nothing in the archive yet.')).not.toBeInTheDocument();
     // Closed cards keep their interview count (feature 005).
-    expect(within(card).getByText('2 interviews')).toBeInTheDocument();
+    expect(within(card).getByText('2 completed interviews')).toBeInTheDocument();
     // Only sort and search: the stage and salary filters belong to the board.
     expect(screen.getByRole('search').style.getPropertyValue('--controls')).toBe('1');
     expect(screen.queryByLabelText('Salary at least')).not.toBeInTheDocument();

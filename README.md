@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml)
 [![Secret scan](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml)
-[![Coverage: 99.9% of lines](https://img.shields.io/badge/coverage-99.9%25-brightgreen)](#continuous-integration)
-[![Mutation score: 99.9%](https://img.shields.io/badge/mutation%20score-99.9%25-brightgreen)](#continuous-integration)
+[![Coverage: 99.6% of lines](https://img.shields.io/badge/coverage-99.6%25-brightgreen)](#continuous-integration)
+[![Mutation score: 99.0%](https://img.shields.io/badge/mutation%20score-99.0%25-brightgreen)](#continuous-integration)
 [![Latest release](https://img.shields.io/github/v/release/bosterkamp/job-opportunity-tracker)](https://github.com/bosterkamp/job-opportunity-tracker/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -16,7 +16,8 @@
 ![Tested on Chrome and iPhone Safari](https://img.shields.io/badge/e2e-Chrome%20%C2%B7%20iPhone%20Safari-2EAD33?logo=playwright&logoColor=white)
 
 **Keep your whole job search in one place: every opening, every application, every interview,
-and every person helping you along the way. Ask Claude where things stand.**
+every person helping you along the way, and every offer, side by side. Ask Claude where things
+stand.**
 
 > **About this repo:** it's a public copy of the private repository I build and run my own
 > tracker from. I keep working on the app there and copy it here periodically, so new features
@@ -48,7 +49,7 @@ employed and quietly looking for something better, the search gets messy fast:
 This app gives that chaos a shape. Each opportunity moves across a board, from **Considering**
 to **Applied**, **Contacted**, **Interviewing** and **Offer**, and every step is dated and kept.
 You can see at a glance what needs a follow-up, what's closing soon, and what pays enough to be
-worth your time.
+worth your time. And when the offers come in, you can lay them side by side and decide.
 
 ### Who it's for
 
@@ -60,6 +61,9 @@ worth your time.
 - **You're changing careers.** The people you meet matter as much as the postings.
   **Networking leads** keep your contacts and notes from each conversation, linked to the roles
   they led to.
+- **You have offers to choose between.** Salary is only part of it. Record each offer's bonus,
+  equity, 401k, insurance, PTO, location, start date and the rest, add your own details such as
+  the commute, then score each one and see which comes out ahead.
 
 ### What makes it different
 
@@ -74,6 +78,10 @@ worth your time.
 - **Fast capture.** A company and a job title are all it needs. Paste a posting's link and
   **Fill from link** brings in the details from most company job sites (not LinkedIn), then
   add more when you have them.
+- **Offers you can compare.** Up to three offers side by side, detail by detail. Score each
+  detail from 1 (worst) to 5 (best), or 0 when it isn't offered, and each offer gets an overall
+  score. Every change to an offer is kept, and the board warns you when a respond-by date is
+  close.
 
 ### A quick look
 
@@ -87,12 +95,35 @@ conversation:
 
 ![Networking leads with their notes](docs/screenshots/leads-desktop.png)
 
+The **Offers** page lists every offer. Tick up to three, here or on the board's Offer column,
+and choose **Compare**:
+
+![The Offers page, with three offers ticked to compare](docs/screenshots/offers-desktop.png)
+
+The comparison puts each detail of each offer side by side. Each score tints its cell from red
+to green, and your own fields (here, the commute and tuition support) line up as rows of their
+own:
+
+![Three offers compared detail by detail, each detail scored, with an overall score for each offer](docs/screenshots/compare-desktop.png)
+
+An opportunity's own page shows its offer with the scores, and keeps the offer's history below:
+
+![An opportunity's offer, each detail with its score](docs/screenshots/offer-desktop.png)
+
 On your phone, the board becomes tabs, one stage at a time, in light or dark:
 
 <p>
   <img src="docs/screenshots/overview-phone.png" alt="The overview on a phone, showing the Applied tab" width="250">
   <img src="docs/screenshots/overview-dark-phone.png" alt="The same overview in dark mode" width="250">
   <img src="docs/screenshots/leads-phone.png" alt="A networking lead and its notes on a phone" width="250">
+</p>
+
+The comparison works on a phone too: the detail names stay in view while the offers scroll
+sideways.
+
+<p>
+  <img src="docs/screenshots/compare-phone.png" alt="The offer comparison on a phone" width="250">
+  <img src="docs/screenshots/compare-dark-phone.png" alt="The offer comparison on a phone in dark mode" width="250">
 </p>
 
 ### Get your own
@@ -121,11 +152,17 @@ day, for opportunities found before they were entered, and it dates the first hi
 Adding and editing both show every field at once (feature 011 removed the folded "More
 details"). Design: [specs/004-board-and-form-updates/](specs/004-board-and-form-updates/).
 
-After each interview, **Add interview** on the opportunity logs it: the day (today by default)
-and an optional note such as "Hiring manager". Interviews appear in the history with the stage
-changes and can be edited or removed. A card with interviews shows how many at its top right
-("2 interviews"), up to 6 per opportunity. Design:
-[specs/005-interview-count/](specs/005-interview-count/).
+Each opportunity has an **Interviews** section. **Add interview** opens its own page: the date
+and time (now by default), and optionally the type (HR / talent advisor, hiring manager,
+business, engineering, other), whether it was a panel, the format (phone, video, in person), how
+it went, next steps, a short note, and the interviewers, each with a name and optionally a
+title, email, phone and LinkedIn profile. Interviews can be added ahead of time: an upcoming one
+is listed first, and becomes past when its time comes. Each interview has its own page, where
+it can be edited or removed; the history shows each past one as a single line that opens it. A
+card shows how many interviews have happened at its top right ("2 completed interviews") and, when one is
+coming up, "Next interview: Nov 12, 2026, 2:00 PM". Up to 6 per opportunity, upcoming ones
+included. Design: [specs/005-interview-count/](specs/005-interview-count/) and
+[specs/012-interview-details/](specs/012-interview-details/).
 
 **Posted until** records the date a posting is up until, when it says. Cards show "Open until
 Nov 14", "Closes in 3 days" (in orange, within a week) or "Posting ended Nov 2". The overview
@@ -142,8 +179,21 @@ opportunities with their stage. Deleting a lead keeps its opportunities, unlinke
 Each lead also keeps **notes** from your conversations with them: **Add note** on the lead's card
 takes the day (today by default, never in the future) and what was said. The card shows the
 newest note, and **Show all** the rest, newest first; each can be edited or deleted. Deleting a
-lead deletes its notes. The navigation reads Overview, Networking leads, Archive. Design:
-[specs/011-lead-notes/](specs/011-lead-notes/).
+lead deletes its notes. Design: [specs/011-lead-notes/](specs/011-lead-notes/).
+
+Each opportunity has an **Offer** section for the offer it received, apart from the posting's
+salary range: **Add offer** opens a page with the base salary, bonus %, sign-on bonus, equity,
+401k, insurance, location and work arrangement, title, role, PTO, leadership, culture, start
+date and respond-by date, all optional, plus your own **custom fields** (such as "Commute"),
+which every offer shares. Each saved change is kept in the offer's history ("Base salary:
+160,000 → 170,000"). The **Offers** page lists every offer, open or closed, and every
+opportunity in the Offer stage; tick two or three there, or on the board's Offer column, and
+**Compare** shows them side by side. On the comparison you score each detail from 0 (not
+offered) to 5 (best); each score shows its number and word ("4 · Good") on a tinted cell, every
+tint at least 4.5:1 with its text in light and dark mode, and each offer's overall score is the
+average. Cards and the Offers page show "Respond by Nov 28", in orange within 3 days. The
+navigation reads Overview, Networking leads, Offers, Archive. Design:
+[specs/013-offer-comparison/](specs/013-offer-comparison/).
 
 ## Architecture
 
@@ -212,13 +262,82 @@ each feature (constitution, Development Workflow).
   the same process, so every rule and message is the web app's, and mark each change "via
   Claude". It reads posting links by invoking the import function, so it never fetches pages
   itself. At most 20 changes a minute go through Claude.
-- **Data**: one DynamoDB table. An opportunity, its stage history, and its interviews share a
-  partition. A stage change is written in a transaction with its history entry, and an
-  interview with the opportunity's interview count (at most 6). An index lists open or
+- **Data**: one DynamoDB table. An opportunity, its stage history, its interviews, and its
+  offer's history share a partition; the offer and its scores are kept on the opportunity, and
+  the custom offer fields in one settings item. A stage change is written in a transaction with its history entry, and an
+  interview with the opportunity's interview count (at most 6) and its time, so the board can
+  tell interviews held from upcoming ones without reading them. An index lists open or
   closed opportunities by their last stage change. Point-in-time recovery is on, and the
   table is kept if the stack is deleted.
 - **Infrastructure**: AWS CDK in TypeScript, in five app stacks (Data, WebDistribution, Auth,
   Api, WebContent) plus a budget alert and the one-time CI role.
+
+### What's stored
+
+Every item is in the one table. Each box is one kind of item, with its key; the lines show what
+belongs to what:
+
+```mermaid
+erDiagram
+    OPPORTUNITY ||--o{ STAGE_CHANGE : "dated history"
+    OPPORTUNITY ||--o{ INTERVIEW : "at most 6"
+    OPPORTUNITY ||--o| OFFER : "at most one, kept on the opportunity"
+    OPPORTUNITY ||--o{ OFFER_CHANGE : "the offer's history"
+    OPPORTUNITY }o--o| LEAD : "came through"
+    LEAD ||--o{ LEAD_NOTE : "notes from each conversation"
+    OFFER }o--o{ CUSTOM_OFFER_FIELD : "a value and a score for each"
+
+    OPPORTUNITY {
+        string partitionKey PK "OPP#id"
+        string sortKey "OPP"
+        string stage "Considering to Offer, then an outcome"
+        string leadId "optional"
+        map offer "the offer's details and custom values"
+        map offerScores "0 to 5 for each detail"
+    }
+    STAGE_CHANGE {
+        string partitionKey PK "OPP#id"
+        string sortKey "CHANGE#seq"
+    }
+    INTERVIEW {
+        string partitionKey PK "OPP#id"
+        string sortKey "INTERVIEW#id"
+        list interviewers "name, title, email, phone, LinkedIn"
+    }
+    OFFER {
+        number baseSalary
+        number bonusPercent
+        number signOnBonus
+        string respondBy
+        map custom "a value for each custom field"
+    }
+    OFFER_CHANGE {
+        string partitionKey PK "OPP#id"
+        string sortKey "OFFERCHANGE#seq"
+        list changes "from and to, for each detail"
+    }
+    CUSTOM_OFFER_FIELD {
+        string partitionKey PK "SETTINGS"
+        string sortKey "OFFER_FIELDS"
+        list fields "shared by every offer"
+        list removed "names kept for the history"
+    }
+    LEAD {
+        string partitionKey PK "LEAD#id"
+        string sortKey "LEAD"
+    }
+    LEAD_NOTE {
+        string partitionKey PK "LEAD#id"
+        string sortKey "NOTE#id"
+    }
+```
+
+The offer isn't an item of its own: it lives on its opportunity, so the board and the Offers
+page read it with the opportunity. All the custom offer fields are one settings item, saved
+with a version number so two changes at once can't overwrite each other. The full layout,
+including the index, is in
+[specs/001-job-opportunity-tracker/data-model.md](specs/001-job-opportunity-tracker/data-model.md),
+with each later feature's additions in its own `data-model.md`.
 
 ### Signing in
 
@@ -289,9 +408,11 @@ your opportunities. Design: [specs/006-installable-app/](specs/006-installable-a
 Add the tracker to Claude (web, desktop, or mobile) as a custom connector, and Claude can list,
 find, and read your opportunities, add new ones (including from a posting link), change their
 details (including the salary range and the date added), move them through the pipeline,
-log or change interviews, list, add and change networking leads and link opportunities to
-them, and read, add and change the notes on a lead. It can't delete anything, including
-interviews, leads and notes. Changes made through Claude are marked "via Claude" in the web app. Design: [specs/003-mcp-server/](specs/003-mcp-server/).
+add or change interviews (past or upcoming, with their details and interviewers), list, add
+and change networking leads and link opportunities to
+them, read, add and change the notes on a lead, and list, record, change and score offers and
+add or rename the custom offer fields. It can't delete anything, including interviews, leads,
+notes, offers and custom fields. Changes made through Claude are marked "via Claude" in the web app. Design: [specs/003-mcp-server/](specs/003-mcp-server/).
 
 1. Get the connector's client ID and secret (they're never in a stack output):
 
@@ -476,11 +597,12 @@ exercise it.
 | `edit`        | Editing, deleting, duplicate warnings, and follow-up flags (US4)                                                                                  |
 | `import`      | Filling the add form from a job posting link (feature 002)                                                                                        |
 | `installable` | Installing the app on a phone, offline open, and updates (feature 006)                                                                            |
-| `interview`   | Logging interviews and the interview count (feature 005)                                                                                          |
+| `interview`   | Interviews: logging them with their details and interviewers, upcoming ones, their pages, and the count (features 005 and 012)                    |
 | `mcp`         | Using the tracker from Claude: the MCP server (feature 003)                                                                                       |
 | `theme`       | The banner and the site colours (feature 008)                                                                                                     |
 | `deadline`    | The posting's closing date, the card's deadline text, and the Closing soonest sort (feature 009)                                                  |
 | `leads`       | Networking leads: the page, their notes, linking opportunities to them, and Claude's lead tools (features 010–011)                                |
+| `offer`       | Offers: their details and history, the Offers page, comparing and scoring them, custom fields, and respond-by dates (feature 013)                 |
 | `infra`       | The AWS CDK stacks and the deploy workflow                                                                                                        |
 
 How a change picks its tests:

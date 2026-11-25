@@ -7,11 +7,21 @@ interface RemoveInterviewProps {
   label: string;
   // Resolves once removed; a rejection's message is shown in the dialog.
   onRemove: () => Promise<unknown>;
+  // What the button and the question say; an offer (feature 013) says its own.
+  triggerText?: string;
+  title?: string;
 }
+
+const INTERVIEW_TITLE = "Remove this interview? This can't be undone.";
 
 // Removing an interview is deliberate (spec FR-007): it asks first, like deleting an
 // opportunity, but a plain confirmation is enough for one entry.
-export function RemoveInterview({ label, onRemove }: RemoveInterviewProps) {
+export function RemoveInterview({
+  label,
+  onRemove,
+  triggerText = 'Remove',
+  title = INTERVIEW_TITLE,
+}: RemoveInterviewProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -29,17 +39,18 @@ export function RemoveInterview({ label, onRemove }: RemoveInterviewProps) {
         aria-label={label}
         onClick={() => setOpen(true)}
       >
-        Remove
+        {triggerText}
       </button>
-      {open && <ConfirmDialog onRemove={onRemove} onClose={close} />}
+      {open && <ConfirmDialog title={title} onRemove={onRemove} onClose={close} />}
     </>
   );
 }
 
 function ConfirmDialog({
+  title,
   onRemove,
   onClose,
-}: Pick<RemoveInterviewProps, 'onRemove'> & { onClose: () => void }) {
+}: Pick<RemoveInterviewProps, 'onRemove'> & { title: string; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const id = useId();
@@ -72,7 +83,7 @@ function ConfirmDialog({
         onKeyDown={handleKeyDown}
       >
         <h3 id={`${id}-title`} className={dialog.title}>
-          Remove this interview? This can&apos;t be undone.
+          {title}
         </h3>
         {error && (
           <p role="alert" className={dialog.error}>

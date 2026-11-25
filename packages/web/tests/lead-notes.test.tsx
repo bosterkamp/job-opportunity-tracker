@@ -80,6 +80,20 @@ describe('the notes on a lead', () => {
     expect(within(card()).queryByRole('region')).not.toBeInTheDocument();
   });
 
+  it('sets "Add note" and the deletes apart from the other buttons (their own styles)', async () => {
+    await openPage([aLead([aNote()])]);
+
+    expect(
+      within(card()).getByRole('button', { name: 'Add a note for Dana Ruiz' }).className,
+    ).toMatch(/secondaryButton.*addNote/);
+    expect(within(card()).getByRole('button', { name: 'Delete Dana Ruiz' }).className).toMatch(
+      /secondaryButton.*deleteLead/,
+    );
+    expect(within(notes()).getByRole('button', { name: /^Delete the note on / }).className).toMatch(
+      /noteButton.*noteDelete/,
+    );
+  });
+
   it('shows one note with its day and its text, line breaks kept, and nothing to open', async () => {
     await openPage([aLead([aNote()])]);
 

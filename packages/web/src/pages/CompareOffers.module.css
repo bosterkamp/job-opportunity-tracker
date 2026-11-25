@@ -1,0 +1,81 @@
+/* The offer comparison (feature 013). On phones the table scrolls sideways inside its frame,
+   with the detail names kept in view; the page itself never does. */
+
+.frame {
+  max-width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table td {
+  min-width: 11rem;
+  max-width: 18rem;
+  overflow-wrap: anywhere;
+}
+
+/* The first column stays in view while the offers scroll. */
+.detail,
+.corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 7rem;
+  background: var(--color-column);
+}
+
+.offer {
+  display: table-cell;
+  min-width: 11rem;
+}
+
+.offer a:first-child {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  min-width: var(--touch-target);
+  font-weight: 600;
+}
+
+.offerTitle {
+  display: block;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-muted);
+  font-weight: normal;
+}
+
+.value {
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.overallRow th,
+.overallRow td {
+  border-bottom: 0;
+  font-weight: 600;
+}
+
+.error {
+  margin: var(--space-1) 0 0;
+  color: var(--color-danger);
+  font-size: var(--text-sm);
+}
+
+.legendTitle {
+  margin: var(--space-6) 0 var(--space-2);
+  font-size: var(--text-base);
+}

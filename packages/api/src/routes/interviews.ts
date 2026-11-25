@@ -41,12 +41,15 @@ export function interviewRoutes({ repo, newId, now, via }: OpportunityRouteDeps)
         const current = await loadOpportunity(repo, id);
         const at = now();
         const recordedAt = at.toISOString();
+        const heldAt = input.heldAt ? checkHeldAt(input.heldAt, at, current) : recordedAt;
+        await repo.startInterviewTimes(current);
         // The transaction holds the limit of 6, even when two adds race.
         await repo.addInterview(
           id,
           {
+            ...input,
             id: newId(),
-            heldAt: input.heldAt ? checkHeldAt(input.heldAt, at, current) : recordedAt,
+            heldAt,
             note: input.note ?? null,
             recordedAt,
             ...(via && { via }),
@@ -63,10 +66,20 @@ export function interviewRoutes({ repo, newId, now, via }: OpportunityRouteDeps)
         const id = params.id as string;
         const patch = InterviewPatchSchema.parse(body);
         const current = await loadOpportunity(repo, id);
+        const at = now();
         const fields = patch.heldAt
-          ? { ...patch, heldAt: checkHeldAt(patch.heldAt, now(), current) }
+          ? { ...patch, heldAt: checkHeldAt(patch.heldAt, at, current) }
           : patch;
-        if (!(await repo.updateInterview(id, params.interviewId as string, fields, via))) {
+        await repo.startInterviewTimes(current);
+        if (
+          !(await repo.updateInterview(
+            id,
+            params.interviewId as string,
+            fields,
+            at.toISOString(),
+            via,
+          ))
+        ) {
           throw new ApiError('NOT_FOUND', INTERVIEW_MESSAGES.NOT_FOUND);
         }
         return json(200, await repo.getWithHistory(id));
@@ -85,6 +98,7 @@ export function interviewRoutes({ repo, newId, now, via }: OpportunityRouteDeps)
           );
         }
         const id = params.id as string;
+        await repo.startInterviewTimes(await loadOpportunity(repo, id));
         const removed = await repo.removeInterview(
           id,
           params.interviewId as string,
