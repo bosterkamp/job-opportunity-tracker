@@ -296,7 +296,8 @@ paths:
     patch:
       summary: >
         Replace the list: add (no id), rename, reorder, or remove. Dropping a field needs
-        X-Confirm-Delete; it moves to `removed` with its last name.
+        X-Confirm-Delete; it moves to `removed` with its last name, and its weight is dropped
+        (feature 014).
       parameters:
         - { name: X-Confirm-Delete, in: header, required: false, schema: { type: string, enum: ['true'] } }
       requestBody:
@@ -334,7 +335,49 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
         '409':
-          description: The list changed since it was read
+          description: >
+            "Settings changed since you loaded them. Reload and try again." The fields or the
+            weights changed since they were read (one version for both, feature 014)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # How much each offer detail counts (feature 014), on the custom fields' settings item.
+  /offer-weights:
+    patch:
+      summary: >
+        Set how much details count, 0 (ignore) to 3 (critical). The keys named are set; 1
+        (Normal) removes a key; the others are kept.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weights, expectedVersion]
+              additionalProperties: false
+              properties:
+                weights:
+                  type: object
+                  minProperties: 1
+                  description: An offer detail (baseSalary, …) or custom:<fieldId> of a current field
+                  additionalProperties: { type: integer, minimum: 0, maximum: 3 }
+                expectedVersion: { type: integer, minimum: 0 }
+      responses:
+        '200':
+          description: The whole settings item, with the version moved on
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OfferFields' }
+        '400':
+          description: >
+            "Choose an importance from 0 to 3", "Unknown detail to weigh" (with
+            `fields: ["weights.<key>"]`), or "Choose a detail to weigh"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: '"Settings changed since you loaded them. Reload and try again."'
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -698,14 +741,20 @@ components:
 
     OfferFields:
       type: object
-      required: [fields, removed, version]
+      required: [fields, removed, weights, version]
       properties:
         fields: { type: array, items: { $ref: '#/components/schemas/OfferField' } }
         removed:
           type: array
           description: Removed fields with their last name, for the history
           items: { $ref: '#/components/schemas/OfferField' }
-        version: { type: integer, minimum: 0 }
+        weights:
+          type: object
+          description: >
+            How much each detail counts (feature 014), keyed by detail or custom:<fieldId>;
+            Normal (1) is left out, so {} means every detail is Normal
+          additionalProperties: { type: integer, enum: [0, 2, 3] }
+        version: { type: integer, minimum: 0, description: Counts changes to fields or weights }
 
     Interview:
       type: object

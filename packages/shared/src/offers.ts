@@ -63,6 +63,10 @@ export const OFFER_MESSAGES = {
   TOO_MANY_FIELDS: `You can have at most ${MAX_OFFER_FIELDS} custom fields`,
   FIELD_NAME: 'Name the field',
   duplicateField: (name: string) => `There's already a field called ${name}`,
+  IMPORTANCE: 'Choose an importance from 0 to 3',
+  WEIGHT_KEY: 'Unknown detail to weigh',
+  NO_WEIGHTS: 'Choose a detail to weigh',
+  SETTINGS_CONFLICT: 'Settings changed since you loaded them. Reload and try again.',
 } as const;
 
 // A custom field's value and score are kept under `custom:<fieldId>`.
@@ -92,22 +96,49 @@ export const scoreText = (score: number): string => `${score} · ${scoreWord(sco
 export const scoreTone = (overall: number): number =>
   Math.min(MAX_SCORE, Math.max(0, Math.round(overall)));
 
-// The average of the scores for the details and the current custom fields, 0s included, to
-// one decimal place (FR-011); undefined when nothing is scored. Scores for a removed custom
-// field are left out.
+// How much each detail counts toward the overall score (feature 014): 0 Ignore, 1 Normal (the
+// default, never stored), 2 Important, 3 Critical. One set, shared by every offer, keyed as
+// scores are: the detail, or `custom:<fieldId>`.
+export const IMPORTANCE_VALUES = [0, 1, 2, 3] as const;
+export const MAX_IMPORTANCE = 3;
+export const NORMAL_IMPORTANCE = 1;
+const IMPORTANCE_WORDS = ['Ignore', 'Normal', 'Important', 'Critical'] as const;
+
+export const importanceWord = (importance: number): string => IMPORTANCE_WORDS[importance] ?? '';
+// "3 · Critical": the number and its meaning, as scores show theirs.
+export const importanceText = (importance: number): string =>
+  `${importance} · ${importanceWord(importance)}`;
+
+export type OfferWeights = Readonly<Record<string, number>>;
+
+export const weightOf = (key: string, weights: OfferWeights): number =>
+  weights[key] ?? NORMAL_IMPORTANCE;
+
+// The overall score (feature 013 FR-011, feature 014 FR-003): each score for a detail or a
+// current custom field, times how much that detail counts, over the total weight of those
+// scored, to one decimal place; 0 scores count, Ignored details don't. Undefined when nothing
+// counts. With every detail Normal it's the plain average. Scores for a removed custom field
+// are left out.
 export function offerOverall(
   scores: Record<string, number> | undefined,
   fields: readonly Pick<OfferField, 'id'>[],
+  weights: OfferWeights,
 ): number | undefined {
   const current = new Set(fields.map((f) => customKey(f.id)));
-  const counted = Object.entries(scores ?? {})
-    .filter(([key]) => isOfferDetail(key) || current.has(key))
-    .map(([, score]) => score);
-  if (counted.length === 0) {
+  let total = 0;
+  let weight = 0;
+  for (const [key, score] of Object.entries(scores ?? {})) {
+    // An Ignored detail adds 0 to both sums.
+    if (isOfferDetail(key) || current.has(key)) {
+      const counts = weightOf(key, weights);
+      total += score * counts;
+      weight += counts;
+    }
+  }
+  if (weight === 0) {
     return undefined;
   }
-  const average = counted.reduce((sum, score) => sum + score, 0) / counted.length;
-  return Math.round(average * 10) / 10;
+  return Math.round((total / weight) * 10) / 10;
 }
 
 export type OfferValue = string | number;

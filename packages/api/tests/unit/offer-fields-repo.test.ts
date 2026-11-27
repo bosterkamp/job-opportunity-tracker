@@ -6,7 +6,12 @@ import { createOfferFieldsRepo } from '../../src/repo/offerFieldsRepo.js';
 
 // The custom offer fields' item (feature 013): what's hard to see against DynamoDB Local.
 
-const NEXT = { fields: [{ id: 'f1', name: 'Commute' }], removed: [], version: 3 };
+const NEXT = {
+  fields: [{ id: 'f1', name: 'Commute' }],
+  removed: [],
+  weights: { title: 0 },
+  version: 3,
+};
 
 function recordingClient(reply: () => Promise<unknown> = () => Promise.resolve({})) {
   const sent: unknown[] = [];

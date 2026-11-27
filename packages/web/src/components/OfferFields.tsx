@@ -12,14 +12,12 @@ import formStyles from './OpportunityForm.module.css';
 import styles from './OfferFields.module.css';
 import { RemoveInterview } from './RemoveInterview';
 
-// The custom fields every offer shares (feature 013): add one, and on the Offers page rename,
-// reorder and remove them. Each change replaces the whole list, as of the version shown.
+// The custom fields every offer shares (feature 013), on Settings since feature 014: add,
+// rename, reorder and remove them. Each change replaces the whole list, as of the version shown.
 
 interface OfferFieldsProps {
-  // "Fields to compare" on the Offers page manages them; the comparison only adds one.
-  manage?: boolean;
   // The offers, to say how many have a value for a field about to be removed.
-  offers?: readonly Opportunity[];
+  offers: readonly Opportunity[];
 }
 
 const plain = (fields: readonly OfferField[]) => fields.map(({ id, name }) => ({ id, name }));
@@ -34,23 +32,15 @@ function problemWith(others: readonly FieldPatch[], field: FieldPatch): string |
     ?.issues[0]?.message;
 }
 
-export function OfferFields({ manage = false, offers = [] }: OfferFieldsProps) {
+export function OfferFields({ offers }: OfferFieldsProps) {
   const { data } = useOfferFields();
   if (!data) {
     return null;
   }
-  return <Loaded data={data} manage={manage} offers={offers} />;
+  return <Loaded data={data} offers={offers} />;
 }
 
-function Loaded({
-  data,
-  manage,
-  offers,
-}: {
-  data: Fields;
-  manage: boolean;
-  offers: readonly Opportunity[];
-}) {
+function Loaded({ data, offers }: { data: Fields; offers: readonly Opportunity[] }) {
   const id = useId();
   const save = useSaveOfferFields();
   const [name, setName] = useState('');
@@ -111,13 +101,13 @@ function Loaded({
 
   return (
     <section aria-labelledby={`${id}-heading`} className={styles.section}>
-      <h3 id={`${id}-heading`}>{manage ? 'Fields to compare' : 'Add a field to compare'}</h3>
-      {manage && fields.length === 0 && (
+      <h4 id={`${id}-heading`}>Custom fields</h4>
+      {fields.length === 0 && (
         <p className={styles.hint}>
           Add your own fields, such as the commute or tuition support. Every offer gets them.
         </p>
       )}
-      {manage && fields.length > 0 && (
+      {fields.length > 0 && (
         <ol className={styles.list} aria-label="Custom fields">
           {fields.map((field, index) =>
             renaming?.id === field.id ? (

@@ -66,6 +66,7 @@ test.describe('the banner', { tag: ['@theme', '@responsive'] }, () => {
     const pages = [
       ['/', 'Overview'],
       ['/archive', 'Archive'],
+      ['/settings', 'Settings'],
       [page.url(), 'Engineer'],
       ['/opportunities/new', 'Add opportunity'],
     ];

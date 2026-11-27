@@ -260,24 +260,24 @@ describe('offerOverall', () => {
   const fields = [{ id: 'f1' }];
 
   it('averages the scores, 0s included', () => {
-    expect(offerOverall({ baseSalary: 5, pto: 4, equity: 0 }, fields)).toBe(3);
-    expect(offerOverall({ baseSalary: 4, pto: 5 }, fields)).toBe(4.5);
+    expect(offerOverall({ baseSalary: 5, pto: 4, equity: 0 }, fields, {})).toBe(3);
+    expect(offerOverall({ baseSalary: 4, pto: 5 }, fields, {})).toBe(4.5);
   });
 
   it('rounds to one decimal place', () => {
-    expect(offerOverall({ baseSalary: 1, pto: 2, equity: 2 }, fields)).toBe(1.7);
-    expect(offerOverall({ baseSalary: 2, pto: 2, equity: 1 }, fields)).toBe(1.7);
+    expect(offerOverall({ baseSalary: 1, pto: 2, equity: 2 }, fields, {})).toBe(1.7);
+    expect(offerOverall({ baseSalary: 2, pto: 2, equity: 1 }, fields, {})).toBe(1.7);
   });
 
   it('counts current custom fields and leaves out removed ones', () => {
-    expect(offerOverall({ baseSalary: 5, [customKey('f1')]: 1 }, fields)).toBe(3);
-    expect(offerOverall({ baseSalary: 5, [customKey('gone')]: 1 }, fields)).toBe(5);
+    expect(offerOverall({ baseSalary: 5, [customKey('f1')]: 1 }, fields, {})).toBe(3);
+    expect(offerOverall({ baseSalary: 5, [customKey('gone')]: 1 }, fields, {})).toBe(5);
   });
 
   it('is undefined with nothing scored', () => {
-    expect(offerOverall({}, fields)).toBeUndefined();
-    expect(offerOverall(undefined, fields)).toBeUndefined();
-    expect(offerOverall({ [customKey('gone')]: 3 }, fields)).toBeUndefined();
+    expect(offerOverall({}, fields, {})).toBeUndefined();
+    expect(offerOverall(undefined, fields, {})).toBeUndefined();
+    expect(offerOverall({ [customKey('gone')]: 3 }, fields, {})).toBeUndefined();
   });
 });
 

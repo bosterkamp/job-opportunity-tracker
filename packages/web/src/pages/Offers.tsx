@@ -4,13 +4,12 @@ import {
   offerOverall,
   respondByText,
   stageLabel,
-  type OfferField,
+  type OfferFields as Settings,
   type Opportunity,
 } from '@jot/shared';
 import { Link } from 'react-router';
 import { combineQueries } from '../api/combineQueries';
 import { useOfferFields, useOpportunities } from '../api/hooks';
-import { OfferFields } from '../components/OfferFields';
 import { QueryState } from '../components/QueryState';
 import { ScoreBadge } from '../components/ScoreCell';
 import {
@@ -23,35 +22,42 @@ import { formatOfferValue } from '../offerFormat';
 import styles from './Offers.module.css';
 import page from './Page.module.css';
 
-const NO_FIELDS: OfferField[] = [];
-
 // Every opportunity with an offer, or in the Offer stage, open ones first (feature 013). Tick
-// two or three to compare them.
+// two or three to compare them. The settings are loaded first, so each overall score is
+// weighted by how much each detail counts (feature 014) from the start.
 export function OffersPage() {
   const open = useOpportunities('OPEN');
   const closed = useOpportunities('CLOSED');
-  const fields = useOfferFields();
+  const settings = useOfferFields();
   const offers =
-    open.data && closed.data ? [...open.data, ...closed.data].filter(isOffer) : undefined;
+    open.data && closed.data && settings.data
+      ? [...open.data, ...closed.data].filter(isOffer)
+      : undefined;
 
   return (
     <>
       <h2>Offers</h2>
-      <QueryState what="your offers" {...combineQueries([open, closed])} />
+      <QueryState what="your offers" {...combineQueries([open, closed, settings])} />
       {offers?.length === 0 && (
         <div className={page.empty}>
           <p>No offers yet. Add one from an opportunity's page, or move one to the Offer stage.</p>
         </div>
       )}
-      {offers && offers.length > 0 && (
-        <OfferList offers={offers} fields={fields.data?.fields ?? NO_FIELDS} />
+      {offers && offers.length > 0 && settings.data && (
+        <OfferList offers={offers} settings={settings.data} />
       )}
-      {offers && <OfferFields manage offers={offers} />}
+      {offers && (
+        <p>
+          <Link to="/settings" className={page.secondaryLink}>
+            Custom fields and what each detail counts are in Settings
+          </Link>
+        </p>
+      )}
     </>
   );
 }
 
-function OfferList({ offers, fields }: { offers: Opportunity[]; fields: readonly OfferField[] }) {
+function OfferList({ offers, settings }: { offers: Opportunity[]; settings: Settings }) {
   const selection = useCompareSelection();
   const today = localDate();
 
@@ -63,7 +69,7 @@ function OfferList({ offers, fields }: { offers: Opportunity[]; fields: readonly
           const respondBy = respondByText(o.offer?.respondBy, today, o.status, (ymd) =>
             formatCalendarDate(ymd),
           );
-          const overall = offerOverall(o.offerScores, fields);
+          const overall = offerOverall(o.offerScores, settings.fields, settings.weights);
           return (
             <li key={o.id} className={styles.row}>
               <CompareCheckbox selection={selection} id={o.id} name={`${o.company}, ${o.title}`} />

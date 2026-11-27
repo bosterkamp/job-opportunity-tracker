@@ -29,7 +29,9 @@ export function createOfferFieldsRepo(
       const { Item } = await client.send(
         new GetCommand({ TableName: tableName, Key, ConsistentRead: true }),
       );
-      return Item ? OfferFieldsSchema.parse(Item) : { fields: [], removed: [], version: 0 };
+      return Item
+        ? OfferFieldsSchema.parse(Item)
+        : { fields: [], removed: [], weights: {}, version: 0 };
     },
 
     async put(next, expectedVersion) {

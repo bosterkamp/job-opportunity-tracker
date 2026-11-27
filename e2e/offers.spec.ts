@@ -178,16 +178,22 @@ test.describe('offers', { tag: '@offer' }, () => {
     },
   );
 
-  test('a custom field is added, filled, scored, renamed and removed', async ({
+  test('a custom field is added on Settings, filled, scored, weighed, renamed and removed', async ({
     page,
     request,
   }) => {
     const { acme, bolt } = await seedOffers(request);
-    await page.goto(`/offers/compare?ids=${acme.id},${bolt.id}`);
+    await page.goto('/settings');
 
     await page.getByLabel('New field').fill('Commute');
     await page.getByRole('button', { name: 'Add field' }).click();
-    await expect(page.getByRole('rowheader', { name: 'Commute' })).toBeVisible();
+    await expect(page.getByLabel('How much Commute counts')).toHaveValue('1');
+    await page.getByLabel('How much Commute counts').selectOption('2');
+    await expect(page.getByRole('status')).toHaveText('Saved');
+
+    await page.goto(`/offers/compare?ids=${acme.id},${bolt.id}`);
+    await expect(page.getByRole('rowheader', { name: 'Commute · Important' })).toBeVisible();
+    await expect(page.getByLabel('New field')).toHaveCount(0);
     await page
       .getByRole('combobox', { name: 'Score Commute for Acme' })
       .selectOption({ label: '3 · Okay' });
@@ -198,10 +204,15 @@ test.describe('offers', { tag: '@offer' }, () => {
     await expect(offerSection(page)).toContainText('20 min');
 
     await page.goto('/offers');
+    await page
+      .getByRole('link', { name: 'Custom fields and what each detail counts are in Settings' })
+      .click();
     await page.getByRole('button', { name: 'Rename Commute' }).click();
     await page.getByLabel('New name for Commute').fill('Commute time');
     await page.getByRole('button', { name: 'Save name' }).click();
     await expect(page.getByRole('list', { name: 'Custom fields' })).toContainText('Commute time');
+    // Renaming keeps how much it counts.
+    await expect(page.getByLabel('How much Commute time counts')).toHaveValue('2');
 
     await page.getByRole('button', { name: 'Remove Commute time' }).click();
     await expect(page.getByRole('alertdialog')).toContainText('1 offer has a value for it');
@@ -210,6 +221,7 @@ test.describe('offers', { tag: '@offer' }, () => {
       .getByRole('button', { name: 'Remove', exact: true })
       .click();
     await expect(page.getByRole('list', { name: 'Custom fields' })).toHaveCount(0);
+    await expect(page.getByLabel(/How much Commute/)).toHaveCount(0);
 
     await page.goto(`/offers/compare?ids=${acme.id},${bolt.id}`);
     await expect(page.getByRole('rowheader', { name: 'Overall' })).toBeVisible();
@@ -243,6 +255,35 @@ test.describe('offers', { tag: '@offer' }, () => {
     },
   );
 
+  test('the overall score follows how much each detail counts, set on Settings', async ({
+    page,
+    request,
+  }) => {
+    const { acme, bolt } = await seedOffers(request);
+    await scoreOffer(request, acme.id, { baseSalary: 5, pto: 1 });
+    await scoreOffer(request, bolt.id, { baseSalary: 3, pto: 5 });
+    const overall = page.getByRole('rowheader', { name: 'Overall' }).locator('..');
+
+    await page.goto(`/offers/compare?ids=${acme.id},${bolt.id}`);
+    await expect(overall).toContainText('3.0 · Okay');
+    await expect(overall).toContainText('4.0 · Good');
+
+    await page.goto('/settings');
+    await page.getByLabel('How much Base salary counts').selectOption('3');
+    await expect(page.getByRole('status')).toHaveText('Saved');
+
+    // Acme (3×5 + 1) ÷ 4 = 4.0; Bolt (3×3 + 5) ÷ 4 = 3.5.
+    await page.goto(`/offers/compare?ids=${acme.id},${bolt.id}`);
+    await expect(overall.getByRole('cell')).toHaveText(['4.0 · Good', '3.5 · Good']);
+    await page.goto('/offers');
+    await expect(page.getByRole('listitem').filter({ hasText: 'Acme' })).toContainText(
+      'Overall4.0 · Good',
+    );
+    await expect(page.getByRole('listitem').filter({ hasText: 'Bolt' })).toContainText(
+      'Overall3.5 · Good',
+    );
+  });
+
   test(
     "nothing on the comparison or the board's Offer tab is drawn over the main navigation",
     { tag: ['@responsive', '@overview'] },
@@ -262,6 +303,11 @@ test.describe('offers', { tag: '@offer' }, () => {
       }
       await expect(page.getByRole('article', { name: 'Hale' })).toBeVisible();
       await expectNavOnTop(page);
+
+      // Settings, the longest page, with a custom field (feature 014).
+      await page.goto('/settings');
+      await expect(page.getByLabel('How much Respond by counts')).toBeVisible();
+      await expectNavOnTop(page);
     },
   );
 });
@@ -270,7 +316,7 @@ test.describe('offers', { tag: '@offer' }, () => {
 // the middle of each of its links must be that link, not the page scrolling beneath it.
 async function expectNavOnTop(page: Page) {
   const links = page.getByRole('navigation', { name: 'Main' }).getByRole('link');
-  await expect(links).toHaveCount(4);
+  await expect(links).toHaveCount(5);
   for (const link of await links.all()) {
     const box = await link.boundingBox();
     expect(box).toBeTruthy();

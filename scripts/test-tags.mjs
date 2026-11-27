@@ -56,7 +56,8 @@ export const TAGS = [
     name: 'offer',
     description:
       'Offers: their details and history, the Offers page, comparing and scoring them, custom ' +
-      'fields, and respond-by dates (feature 013)',
+      'fields, and respond-by dates (feature 013); how much each detail counts, and the ' +
+      'Settings page (feature 014)',
   },
   { name: 'infra', description: 'The AWS CDK stacks and the deploy workflow' },
 ];
@@ -140,6 +141,8 @@ export const SOURCE_TAGS = [
   ['packages/web/src/pages/EditOffer*', ['offer']],
   ['packages/web/src/pages/Offers*', ['offer']],
   ['packages/web/src/pages/CompareOffers*', ['offer']],
+  ['packages/web/src/pages/Settings*', ['offer']],
+  ['packages/web/src/components/OfferWeights*', ['offer']],
   ['packages/web/src/features/offers/**', ['offer', 'overview']],
   ['packages/web/src/components/LeadDialog*', ['leads']],
   ['packages/web/src/components/DeleteLead*', ['leads']],

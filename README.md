@@ -2,8 +2,8 @@
 
 [![CI](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/ci.yml)
 [![Secret scan](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml/badge.svg)](https://github.com/bosterkamp/job-opportunity-tracker/actions/workflows/secret-scan.yml)
-[![Coverage: 99.6% of lines](https://img.shields.io/badge/coverage-99.6%25-brightgreen)](#continuous-integration)
-[![Mutation score: 99.0%](https://img.shields.io/badge/mutation%20score-99.0%25-brightgreen)](#continuous-integration)
+[![Coverage: 99.5% of lines](https://img.shields.io/badge/coverage-99.5%25-brightgreen)](#continuous-integration)
+[![Mutation score: 98.0%](https://img.shields.io/badge/mutation%20score-98.0%25-brightgreen)](#continuous-integration)
 [![Latest release](https://img.shields.io/github/v/release/bosterkamp/job-opportunity-tracker)](https://github.com/bosterkamp/job-opportunity-tracker/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -63,7 +63,8 @@ worth your time. And when the offers come in, you can lay them side by side and 
   they led to.
 - **You have offers to choose between.** Salary is only part of it. Record each offer's bonus,
   equity, 401k, insurance, PTO, location, start date and the rest, add your own details such as
-  the commute, then score each one and see which comes out ahead.
+  the commute, say which details matter most, then score each one and see which comes out
+  ahead.
 
 ### What makes it different
 
@@ -80,8 +81,8 @@ worth your time. And when the offers come in, you can lay them side by side and 
   add more when you have them.
 - **Offers you can compare.** Up to three offers side by side, detail by detail. Score each
   detail from 1 (worst) to 5 (best), or 0 when it isn't offered, and each offer gets an overall
-  score. Every change to an offer is kept, and the board warns you when a respond-by date is
-  close.
+  score, weighted by how much each detail matters to you. Every change to an offer is kept, and
+  the board warns you when a respond-by date is close.
 
 ### A quick look
 
@@ -102,9 +103,16 @@ and choose **Compare**:
 
 The comparison puts each detail of each offer side by side. Each score tints its cell from red
 to green, and your own fields (here, the commute and tuition support) line up as rows of their
-own:
+own. A detail that counts more or less than usual says so beside its name:
 
 ![Three offers compared detail by detail, each detail scored, with an overall score for each offer](docs/screenshots/compare-desktop.png)
+
+On **Settings** you say how much each detail counts toward the overall score: 0 Ignore,
+1 Normal, 2 Important or 3 Critical. Here the base salary counts three times as much as most
+details, the work arrangement and the commute twice, and the respond-by date not at all. Your
+custom fields are added, renamed, reordered and removed here too:
+
+![Settings: the custom fields, and how much each detail counts](docs/screenshots/settings-desktop.png)
 
 An opportunity's own page shows its offer with the scores, and keeps the offer's history below:
 
@@ -185,15 +193,22 @@ Each opportunity has an **Offer** section for the offer it received, apart from 
 salary range: **Add offer** opens a page with the base salary, bonus %, sign-on bonus, equity,
 401k, insurance, location and work arrangement, title, role, PTO, leadership, culture, start
 date and respond-by date, all optional, plus your own **custom fields** (such as "Commute"),
-which every offer shares. Each saved change is kept in the offer's history ("Base salary:
+which every offer shares and which you add, rename, reorder and remove on **Settings**. Each saved change is kept in the offer's history ("Base salary:
 160,000 → 170,000"). The **Offers** page lists every offer, open or closed, and every
 opportunity in the Offer stage; tick two or three there, or on the board's Offer column, and
 **Compare** shows them side by side. On the comparison you score each detail from 0 (not
 offered) to 5 (best); each score shows its number and word ("4 · Good") on a tinted cell, every
 tint at least 4.5:1 with its text in light and dark mode, and each offer's overall score is the
-average. Cards and the Offers page show "Respond by Nov 28", in orange within 3 days. The
-navigation reads Overview, Networking leads, Offers, Archive. Design:
+average of its scores weighted by how much each detail counts. Cards and the Offers page show
+"Respond by Nov 28", in orange within 3 days. Design:
 [specs/013-offer-comparison/](specs/013-offer-comparison/).
+
+**Settings** says how much each detail counts toward the overall score: 0 Ignore, 1 Normal (the
+default), 2 Important or 3 Critical, so a Critical detail counts three times a Normal one and an
+Ignored one not at all. Each change saves on its own. One set applies to every offer, and with
+everything Normal the overall is the plain average. The comparison shows a detail's importance
+beside its name ("Base salary · Critical"). The navigation reads Overview, Networking leads,
+Offers, Archive, Settings. Design: [specs/014-offer-weights/](specs/014-offer-weights/).
 
 ## Architecture
 
@@ -264,7 +279,7 @@ each feature (constitution, Development Workflow).
   itself. At most 20 changes a minute go through Claude.
 - **Data**: one DynamoDB table. An opportunity, its stage history, its interviews, and its
   offer's history share a partition; the offer and its scores are kept on the opportunity, and
-  the custom offer fields in one settings item. A stage change is written in a transaction with its history entry, and an
+  the custom offer fields and how much each detail counts in one settings item. A stage change is written in a transaction with its history entry, and an
   interview with the opportunity's interview count (at most 6) and its time, so the board can
   tell interviews held from upcoming ones without reading them. An index lists open or
   closed opportunities by their last stage change. Point-in-time recovery is on, and the
@@ -285,7 +300,7 @@ erDiagram
     OPPORTUNITY ||--o{ OFFER_CHANGE : "the offer's history"
     OPPORTUNITY }o--o| LEAD : "came through"
     LEAD ||--o{ LEAD_NOTE : "notes from each conversation"
-    OFFER }o--o{ CUSTOM_OFFER_FIELD : "a value and a score for each"
+    OFFER }o--o{ OFFER_SETTINGS : "a value and a score for each field, weighted by"
 
     OPPORTUNITY {
         string partitionKey PK "OPP#id"
@@ -316,11 +331,13 @@ erDiagram
         string sortKey "OFFERCHANGE#seq"
         list changes "from and to, for each detail"
     }
-    CUSTOM_OFFER_FIELD {
+    OFFER_SETTINGS {
         string partitionKey PK "SETTINGS"
         string sortKey "OFFER_FIELDS"
-        list fields "shared by every offer"
+        list fields "custom fields, shared by every offer"
         list removed "names kept for the history"
+        map weights "0 to 3 for each detail; Normal is left out"
+        number version "every save checks it"
     }
     LEAD {
         string partitionKey PK "LEAD#id"
@@ -333,8 +350,10 @@ erDiagram
 ```
 
 The offer isn't an item of its own: it lives on its opportunity, so the board and the Offers
-page read it with the opportunity. All the custom offer fields are one settings item, saved
-with a version number so two changes at once can't overwrite each other. The full layout,
+page read it with the opportunity. The custom offer fields and how much each detail counts are
+one settings item, saved with a version number so two changes at once can't overwrite each
+other. Each overall score is worked out when it's shown, from the scores and the weights, so
+changing a weight changes no offer. The full layout,
 including the index, is in
 [specs/001-job-opportunity-tracker/data-model.md](specs/001-job-opportunity-tracker/data-model.md),
 with each later feature's additions in its own `data-model.md`.
@@ -410,8 +429,8 @@ find, and read your opportunities, add new ones (including from a posting link),
 details (including the salary range and the date added), move them through the pipeline,
 add or change interviews (past or upcoming, with their details and interviewers), list, add
 and change networking leads and link opportunities to
-them, read, add and change the notes on a lead, and list, record, change and score offers and
-add or rename the custom offer fields. It can't delete anything, including interviews, leads,
+them, read, add and change the notes on a lead, list, record, change and score offers, add or
+rename the custom offer fields, and set how much each detail counts. It can't delete anything, including interviews, leads,
 notes, offers and custom fields. Changes made through Claude are marked "via Claude" in the web app. Design: [specs/003-mcp-server/](specs/003-mcp-server/).
 
 1. Get the connector's client ID and secret (they're never in a stack output):

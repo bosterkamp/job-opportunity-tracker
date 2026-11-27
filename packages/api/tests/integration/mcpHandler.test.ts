@@ -274,6 +274,7 @@ describe('the default wiring', () => {
       'score_offer',
       'add_offer_field',
       'rename_offer_field',
+      'set_offer_weights',
       'add_lead',
       'update_lead',
       'add_lead_note',

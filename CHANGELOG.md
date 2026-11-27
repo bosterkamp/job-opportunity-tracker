@@ -3,6 +3,29 @@
 Changes copied over from the private repo, newest first. Each update is a single commit and a
 release.
 
+## v1.2.0 (2026-11-27)
+
+### Added
+
+- **How much each offer detail counts** (feature 014):
+  - Each detail, and each custom field, has an importance: 0 Ignore, 1 Normal (the default),
+    2 Important or 3 Critical. A Critical detail counts three times a Normal one, and an Ignored
+    one doesn't count.
+  - Each offer's overall score is now the weighted average of its scores. With everything at
+    Normal it's exactly the plain average, so nothing changes until you set a weight.
+  - One set of weights applies to every offer, so the comparison stays fair.
+  - The comparison shows a detail's importance beside its name, for example
+    "Base salary · Critical".
+  - Claude can set the weights, and its overall scores match the web app's.
+- **Settings page**, after Archive in the navigation (including the phone's bottom bar). It
+  holds the weights, each saved as soon as you change it, and the custom offer fields.
+- **README:** a screenshot of Settings, and the comparison's screenshot with weights set.
+
+### Changed
+
+- Custom offer fields are added, renamed, reordered and removed on Settings, no longer on the
+  Offers page or the comparison. Both link to Settings.
+
 ## v1.1.0 (2026-11-25)
 
 ### Added

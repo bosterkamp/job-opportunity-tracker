@@ -343,8 +343,9 @@ describe('the read tools', () => {
           description:
             'Lists every opportunity with an offer, or in the Offer stage, open ones first, each ' +
             'with its offer (custom fields by name), its scores (0 not offered, 1 worst to 5 best) ' +
-            'and its overall score, the average of its scores. fields are the custom fields every ' +
-            'offer shares. Use it to compare offers.',
+            'and its overall score, the average of its scores weighted by how much each detail ' +
+            'counts. importance says how much each detail and custom field counts (0 ignored to 3 ' +
+            'critical); fields are the custom fields every offer shares. Use it to compare offers.',
         },
       ]);
     } finally {

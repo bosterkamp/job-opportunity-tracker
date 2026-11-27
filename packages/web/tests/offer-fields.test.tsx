@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { anOpportunity, jsonResponse, mockApi, renderApp } from './harness';
 import { fill } from './user';
 
-// Feature 013: the custom fields every offer shares, on the Offers page and the comparison.
+// Feature 013: the custom fields every offer shares, managed on Settings since feature 014.
 const AT = '2026-11-20T15:00:00.000Z';
 
 afterEach(() => {
@@ -32,7 +32,7 @@ const bolt = anOpportunity({
 
 // A fake list of fields that takes each change, as the API does.
 function fieldsApi(start: OfferFields['fields'], extra: Record<string, () => Response> = {}) {
-  let current: OfferFields = { fields: start, removed: [], version: 4 };
+  let current: OfferFields = { fields: start, removed: [], weights: {}, version: 4 };
   const sent: { body: unknown; headers: Headers }[] = [];
   let n = 0;
   const routes = {
@@ -48,6 +48,7 @@ function fieldsApi(start: OfferFields['fields'], extra: Record<string, () => Res
       current = {
         fields: fields.map((f) => ({ id: f.id ?? `new${n++}`, name: f.name })),
         removed: [...current.removed, ...current.fields.filter((f) => !kept.has(f.id))],
+        weights: current.weights,
         version: current.version + 1,
       };
       return jsonResponse(200, current);
@@ -70,18 +71,18 @@ const fieldNames = () =>
     .getAllByRole('listitem')
     .map((item) => item.querySelector('span')?.textContent);
 
-describe('Fields to compare, on the Offers page', () => {
+describe('Custom fields, on Settings', () => {
   it('adds a field, which becomes a row on the comparison and a field on the form', async () => {
     const { routes, sent } = fieldsApi([]);
     mockApi(routes);
-    const view = renderApp('/offers');
+    const view = renderApp('/settings');
 
     expect(
       await screen.findByText(
         'Add your own fields, such as the commute or tuition support. Every offer gets them.',
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'Fields to compare' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Custom fields' })).toBeInTheDocument();
     expect(screen.queryByRole('list', { name: 'Custom fields' })).toBeNull();
     await fill(screen.getByLabelText('New field'), 'Commute');
     await userEvent.click(screen.getByRole('button', { name: 'Add field' }));
@@ -105,7 +106,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('refuses a blank, long or repeated name on its field, and sends nothing', async () => {
     const { routes, sent } = fieldsApi(START);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Add field' }));
     expect(screen.getByLabelText('New field')).toHaveAccessibleDescription('Name the field');
@@ -127,7 +128,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('says when there are 20, instead of offering more', async () => {
     const twenty = Array.from({ length: 20 }, (_, i) => ({ id: `f${i}`, name: `Field ${i}` }));
     mockApi(fieldsApi(twenty).routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     expect(await screen.findByText('You can have at most 20 custom fields')).toBeInTheDocument();
     expect(screen.queryByLabelText('New field')).toBeNull();
@@ -136,7 +137,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('renames a field, keeping its id', async () => {
     const { routes, sent } = fieldsApi(START);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Rename Commute' }));
     const input = screen.getByLabelText('New name for Commute');
@@ -167,7 +168,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('refuses renaming a field to the name of one after it, and sends nothing', async () => {
     const { routes, sent } = fieldsApi(START);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Rename Commute' }));
     await userEvent.clear(screen.getByLabelText('New name for Commute'));
@@ -183,7 +184,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('cancels a rename', async () => {
     const { routes, sent } = fieldsApi(START);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Rename Tuition' }));
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
@@ -194,7 +195,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('moves fields up and down', async () => {
     const { routes, sent } = fieldsApi([...START, { id: 'f3', name: 'Gym' }]);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     expect(await screen.findByRole('button', { name: 'Move Commute up' })).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Move Gym down' })).toBeDisabled();
@@ -209,7 +210,7 @@ describe('Fields to compare, on the Offers page', () => {
   it('removes a field after saying how many offers have a value for it', async () => {
     const { routes, sent } = fieldsApi(START);
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove Commute' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
@@ -235,7 +236,7 @@ describe('Fields to compare, on the Offers page', () => {
 
   it('says when no offer has a value for the field', async () => {
     mockApi(fieldsApi([{ id: 'f9', name: 'Gym' }]).routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Remove Gym' }));
     expect(screen.getByRole('alertdialog')).toHaveTextContent(
@@ -248,29 +249,34 @@ describe('Fields to compare, on the Offers page', () => {
       'PATCH /offer-fields': () =>
         jsonResponse(409, {
           code: 'CONFLICT',
-          message: 'The custom fields changed since you loaded them. Reload and try again.',
+          message: 'Settings changed since you loaded them. Reload and try again.',
         }),
     });
     mockApi(routes);
-    renderApp('/offers');
+    renderApp('/settings');
 
     await userEvent.click(await screen.findByRole('button', { name: 'Move Tuition up' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Reload and try again.');
   });
 });
 
-describe('on the comparison', () => {
-  it('has no hint or list, even with no fields', async () => {
-    mockApi(fieldsApi([]).routes);
-    renderApp('/offers/compare?ids=a,b');
+describe('on the Offers page and the comparison', () => {
+  it('has no field controls, only a link to Settings, on the Offers page', async () => {
+    mockApi(fieldsApi(START).routes);
+    renderApp('/offers');
 
-    expect(await screen.findByLabelText('New field')).toBeInTheDocument();
-    expect(screen.queryByText(/Add your own fields/)).toBeNull();
+    await screen.findByRole('list', { name: 'Offers' });
+    expect(screen.queryByLabelText('New field')).toBeNull();
+    expect(screen.queryByRole('list', { name: 'Custom fields' })).toBeNull();
+    expect(
+      screen.getByRole('link', {
+        name: 'Custom fields and what each detail counts are in Settings',
+      }),
+    ).toHaveAttribute('href', '/settings');
   });
 
-  it("adds a field, and shows each offer's value and score for the current fields", async () => {
-    const { routes, sent } = fieldsApi([{ id: 'f1', name: 'Commute' }]);
-    mockApi(routes);
+  it("has no field controls on the comparison, but each offer's value and score", async () => {
+    mockApi(fieldsApi([{ id: 'f1', name: 'Commute' }]).routes);
     renderApp('/offers/compare?ids=a,b');
 
     expect(
@@ -278,13 +284,8 @@ describe('on the comparison', () => {
     ).toHaveDisplayValue('2 · Poor');
     // Bolt's value for the removed field f2 isn't shown.
     expect(screen.queryByText('Yes')).toBeNull();
-    expect(screen.queryByRole('list', { name: 'Custom fields' })).toBeNull();
-    expect(screen.getByRole('region', { name: 'Add a field to compare' })).toBeInTheDocument();
-
-    await fill(screen.getByLabelText('New field'), 'Gym');
-    await userEvent.click(screen.getByRole('button', { name: 'Add field' }));
-    expect(await screen.findByRole('rowheader', { name: 'Gym' })).toBeInTheDocument();
-    expect(sent).toHaveLength(1);
+    expect(screen.queryByLabelText('New field')).toBeNull();
+    expect(screen.queryByRole('region', { name: /field/i })).toBeNull();
   });
 
   it('leaves a removed field out of the overall', async () => {
@@ -300,5 +301,33 @@ describe('on the comparison', () => {
 
     const overall = (await screen.findByRole('rowheader', { name: 'Overall' })).closest('tr');
     expect(within(overall as HTMLElement).getAllByRole('cell')[0]).toHaveTextContent('4.0 · Good');
+  });
+});
+
+describe('custom fields and how much they count', () => {
+  const importances = () =>
+    within(screen.getByRole('list', { name: 'How much each detail counts' }))
+      .getAllByRole('combobox')
+      .map((select) => [select.getAttribute('aria-label'), (select as HTMLSelectElement).value]);
+
+  it('lists a new field at Normal, and a removed one no more', async () => {
+    mockApi(fieldsApi([{ id: 'f1', name: 'Commute' }]).routes);
+    renderApp('/settings');
+
+    await fill(await screen.findByLabelText('New field'), 'Gym');
+    await userEvent.click(screen.getByRole('button', { name: 'Add field' }));
+    await waitFor(() =>
+      expect(importances().slice(-2)).toEqual([
+        ['How much Commute counts', '1'],
+        ['How much Gym counts', '1'],
+      ]),
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Commute' }));
+    await userEvent.click(
+      within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Remove' }),
+    );
+    await waitFor(() => expect(importances().slice(-1)).toEqual([['How much Gym counts', '1']]));
+    expect(importances()).toHaveLength(16);
   });
 });

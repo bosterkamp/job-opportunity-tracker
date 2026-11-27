@@ -54,7 +54,8 @@ export function OfferSection({ opportunity: o }: { opportunity: OpportunityWithH
     })),
     // A scored detail with nothing entered still shows, with its score.
   ].filter((row) => row.value !== undefined || scores[row.key] !== undefined);
-  const overall = offerOverall(scores, fields);
+  // Weighted by how much each detail counts (feature 014), so it waits for the settings.
+  const overall = data && offerOverall(scores, fields, data.weights);
   const history = [...(o.offerHistory ?? [])].reverse();
 
   return (
@@ -71,10 +72,12 @@ export function OfferSection({ opportunity: o }: { opportunity: OpportunityWithH
           onRemove={() => remove.mutateAsync(undefined)}
         />
       </div>
-      <p>
-        Overall score:{' '}
-        {overall === undefined ? 'Not scored' : <ScoreBadge score={overall} overall />}
-      </p>
+      {data && (
+        <p>
+          Overall score:{' '}
+          {overall === undefined ? 'Not scored' : <ScoreBadge score={overall} overall />}
+        </p>
+      )}
       {rows.length > 0 ? (
         <dl className={page.facts}>
           {rows.map((row) => (

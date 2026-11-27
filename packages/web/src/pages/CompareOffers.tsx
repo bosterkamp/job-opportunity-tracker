@@ -2,9 +2,12 @@ import {
   MAX_COMPARE,
   OFFER_DETAILS,
   customKey,
+  importanceWord,
+  NORMAL_IMPORTANCE,
   offerDetailLabel,
   offerOverall,
-  type OfferField,
+  weightOf,
+  type OfferFields as Settings,
   type OpportunityWithHistory,
 } from '@jot/shared';
 import { useState } from 'react';
@@ -12,14 +15,13 @@ import { Link, useSearchParams } from 'react-router';
 import { ApiError } from '../api/client';
 import { combineQueries } from '../api/combineQueries';
 import { useOfferFields, useOpportunitiesById, useSetOfferScores } from '../api/hooks';
-import { OfferFields } from '../components/OfferFields';
 import { QueryState } from '../components/QueryState';
 import { ScoreBadge, ScoreLegend, ScoreSelect } from '../components/ScoreCell';
 import { formatOfferValue } from '../offerFormat';
 import styles from './CompareOffers.module.css';
 import page from './Page.module.css';
 
-const NO_FIELDS: OfferField[] = [];
+const NO_SETTINGS: Settings = { fields: [], removed: [], weights: {}, version: 0 };
 
 // The ids in the address, at most three, each once.
 export function compareIds(param: string | null): string[] {
@@ -67,7 +69,7 @@ export function CompareOffersPage() {
               </Link>
             </div>
           ) : (
-            <Comparison offers={loaded} fields={fields.data?.fields ?? NO_FIELDS} />
+            <Comparison offers={loaded} settings={fields.data ?? NO_SETTINGS} />
           )}
         </>
       )}
@@ -79,11 +81,12 @@ const isGone = (error: unknown) => error instanceof ApiError && error.status ===
 
 function Comparison({
   offers,
-  fields,
+  settings,
 }: {
   offers: OpportunityWithHistory[];
-  fields: readonly OfferField[];
+  settings: Settings;
 }) {
+  const { fields, weights } = settings;
   const rows: Row[] = [
     ...OFFER_DETAILS.map((detail) => ({
       key: detail,
@@ -127,6 +130,7 @@ function Comparison({
               <tr key={row.key}>
                 <th scope="row" className={styles.detail}>
                   {row.label}
+                  <Importance weight={weightOf(row.key, weights)} />
                 </th>
                 {offers.map((o) => (
                   <td key={o.id}>
@@ -141,7 +145,7 @@ function Comparison({
                 Overall
               </th>
               {offers.map((o) => {
-                const overall = offerOverall(o.offerScores, fields);
+                const overall = offerOverall(o.offerScores, fields, weights);
                 return (
                   <td key={o.id}>
                     {overall === undefined ? 'Not scored' : <ScoreBadge score={overall} overall />}
@@ -154,7 +158,29 @@ function Comparison({
       </div>
       <h3 className={styles.legendTitle}>What the scores mean</h3>
       <ScoreLegend />
-      <OfferFields />
+      <p>
+        <Link to="/settings" className={page.secondaryLink}>
+          Change what each detail counts
+        </Link>
+      </p>
+    </>
+  );
+}
+
+// How much a row counts toward the overall (feature 014), beside its name unless it's Normal.
+function Importance({ weight }: { weight: number }) {
+  if (weight === NORMAL_IMPORTANCE) {
+    return null;
+  }
+  // The separator is the header's own text, so its accessible name keeps the spaces.
+  return (
+    <>
+      {' · '}
+      {weight === 0 ? (
+        <span className={styles.ignored}>Ignored, doesn&apos;t count</span>
+      ) : (
+        <span className={styles.importance}>{importanceWord(weight)}</span>
+      )}
     </>
   );
 }

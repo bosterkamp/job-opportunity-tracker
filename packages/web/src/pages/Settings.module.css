@@ -1,0 +1,5 @@
+/* The Settings page (feature 014): one section per kind of setting. */
+
+.section {
+  margin: var(--space-4) 0 var(--space-8);
+}

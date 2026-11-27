@@ -26,6 +26,7 @@ are `destructiveHint: false` (nothing is deleted) and `idempotentHint: false`.
 | `list_offers` | Every offer, with its scores and overall, and the custom fields (feature 013) | 013 FR-014 |
 | `update_offer`, `score_offer` | Record or change an offer, and score it (feature 013) | 013 FR-014 |
 | `add_offer_field`, `rename_offer_field` | Add or rename a custom offer field (feature 013) | 013 FR-014 |
+| `set_offer_weights` | Set how much offer details count toward the overall (feature 014) | 014 FR-011 |
 
 There is deliberately no delete tool (FR-014).
 
@@ -64,7 +65,8 @@ entry's `via`. Since feature 012 each interview has its details, its interviewer
 or phone) for the networking lead it's linked to, or `null`; a link to a lead that's gone reads
 as `null`. Feature 013 adds `offer` (custom values by field name), `offerScores` (custom fields
 by name), `offerOverall` and `offerHistory` (each change's field by name, a removed field's as
-"{name} (removed)"); with no offer they're `null`, `null`, `null` and `[]`. Errors: `NOT_FOUND`.
+"{name} (removed)"); with no offer they're `null`, `null`, `null` and `[]`. Since feature 014
+`offerOverall` is weighted by how much each detail counts. Errors: `NOT_FOUND`.
 
 ## `read_posting`
 
@@ -179,11 +181,14 @@ remove an offer or a custom field: only the web app does.
 
 | Tool | Input | Output |
 |---|---|---|
-| `list_offers` (read) | none | `{ fields: [name], items: [{ id, company, title, stage, status, offer, scores, overall }] }`: every opportunity with an offer or in the Offer stage, open first; `offer`, `scores` and `overall` are `null` without an offer |
+| `list_offers` (read) | none | `{ fields: [name], importance: { detail or field name: { value, word } }, items: [{ id, company, title, stage, status, offer, scores, overall }] }`: every opportunity with an offer or in the Offer stage, open first; `offer`, `scores` and `overall` are `null` without an offer; `overall` is weighted by `importance` (feature 014), which lists every detail and field, Normal included |
 | `update_offer` | `opportunity_id`, any of `base_salary`, `bonus_percent`, `sign_on_bonus`, `equity`, `retirement`, `insurance`, `location`, `work_arrangement`, `title`, `role`, `pto`, `leadership`, `culture`, `start_date`, `respond_by` (`null` clears one; amounts may be `"170k"`), and `custom: { name: text \| null }` | the opportunity, as `get_opportunity` gives it; the first call adds the offer |
 | `score_offer` | `opportunity_id`, `scores: { detail or custom field name: 0–5 \| null }` | the opportunity, as `get_opportunity` gives it |
 | `add_offer_field` | `name` | `{ fields: [name] }` |
 | `rename_offer_field` | `name`, `new_name` | `{ fields: [name] }` |
+| `set_offer_weights` (feature 014) | `weights: { detail or custom field name: 0–3 }`; names not given keep their weight | `{ importance }`, as `list_offers` gives it |
 
-Errors: `VALIDATION_ERROR` (the web app's messages, and "Unknown custom field: {name}"),
+Errors: `VALIDATION_ERROR` (the web app's messages, "Unknown custom field: {name}", and for
+`set_offer_weights` "Unknown detail or custom field: {name}. Details are …; custom fields are
+…"),
 `NOT_FOUND`, `CONFLICT` (another change got there first), `RATE_LIMITED`.

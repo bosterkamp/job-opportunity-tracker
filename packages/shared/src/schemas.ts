@@ -15,6 +15,7 @@ import {
   isFieldId,
   isScoreKey,
   MAX_BONUS_PERCENT,
+  MAX_IMPORTANCE,
   MAX_OFFER_FIELD_NAME,
   MAX_OFFER_FIELDS,
   MAX_OFFER_TEXT,
@@ -321,6 +322,9 @@ export const OfferFieldsSchema = z.object({
   fields: z.array(OfferFieldSchema),
   // Removed fields with their last name, so the history can still name them.
   removed: z.array(OfferFieldSchema),
+  // How much each detail counts (feature 014); Normal is left out, so a missing map is all
+  // Normal.
+  weights: z.record(z.string(), z.number().int().min(0).max(MAX_IMPORTANCE)).default({}),
   version: z.number().int().min(0),
 });
 
@@ -353,6 +357,25 @@ export const OfferFieldsPatchSchema = z.strictObject(
           seen.add(key);
         });
       }),
+    expectedVersion: z.number(wholeNumber).int(wholeNumber).min(0, wholeNumber),
+  },
+  { error: unknownFieldError },
+);
+
+// Setting how much details count (feature 014): each key named to 0–3. Others are kept.
+const importanceMessage = { error: OFFER_MESSAGES.IMPORTANCE };
+const Importance = z
+  .number(importanceMessage)
+  .int(importanceMessage)
+  .min(0, importanceMessage)
+  .max(MAX_IMPORTANCE, importanceMessage);
+const WeightKey = z.string().refine(isScoreKey, { error: OFFER_MESSAGES.WEIGHT_KEY });
+
+export const OfferWeightsPatchSchema = z.strictObject(
+  {
+    weights: z
+      .record(WeightKey, Importance, keyError(OFFER_MESSAGES.WEIGHT_KEY))
+      .refine((weights) => Object.keys(weights).length > 0, { error: OFFER_MESSAGES.NO_WEIGHTS }),
     expectedVersion: z.number(wholeNumber).int(wholeNumber).min(0, wholeNumber),
   },
   { error: unknownFieldError },
@@ -647,3 +670,4 @@ export type OfferChange = z.output<typeof OfferChangeSchema>;
 export type OfferField = z.output<typeof OfferFieldSchema>;
 export type OfferFields = z.output<typeof OfferFieldsSchema>;
 export type OfferFieldsPatch = z.output<typeof OfferFieldsPatchSchema>;
+export type OfferWeightsPatch = z.output<typeof OfferWeightsPatchSchema>;

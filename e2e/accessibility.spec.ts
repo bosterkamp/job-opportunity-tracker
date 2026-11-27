@@ -247,11 +247,28 @@ test.describe('Accessibility', () => {
         await page.goto('/offers');
         await page.getByRole('checkbox', { name: 'Compare Acme, Engineer' }).check();
         await page.getByRole('checkbox', { name: 'Compare Bolt, Lead' }).check();
-        await expect(page.getByRole('list', { name: 'Custom fields' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Compare 2' })).toBeVisible();
         await expectNoViolations(page);
 
         await page.getByRole('link', { name: 'Compare 2' }).click();
         await expect(page.getByRole('table')).toBeVisible();
+        await expectNoViolations(page);
+      },
+    );
+
+    test(
+      'Settings, with an importance saved and a custom field',
+      { tag: '@responsive' },
+      async ({ page, request }) => {
+        const fields = await request.patch(`${API_URL}/offer-fields`, {
+          data: { fields: [{ name: 'Commute' }], expectedVersion: 0 },
+        });
+        expect(fields.status()).toBe(200);
+
+        await page.goto('/settings');
+        await expect(page.getByRole('list', { name: 'Custom fields' })).toBeVisible();
+        await page.getByLabel('How much Base salary counts').selectOption('3');
+        await expect(page.getByRole('status')).toHaveText('Saved');
         await expectNoViolations(page);
       },
     );

@@ -85,6 +85,29 @@ async function setup() {
 
 const refusal = (result: Result) => (result.isError ? result.content[0]?.text : undefined);
 
+// list_offers' importance with every detail and the given custom fields at Normal (feature 014).
+const DETAIL_NAMES = [
+  'base_salary',
+  'bonus_percent',
+  'sign_on_bonus',
+  'equity',
+  'retirement',
+  'insurance',
+  'location',
+  'work_arrangement',
+  'title',
+  'role',
+  'pto',
+  'leadership',
+  'culture',
+  'start_date',
+  'respond_by',
+];
+const everyNormal = (fields: string[] = []) =>
+  Object.fromEntries(
+    [...DETAIL_NAMES, ...fields].map((name) => [name, { value: 1, word: 'Normal' }]),
+  );
+
 describe('offers through Claude', () => {
   it('records an offer by name, marked via Claude, and the web app shows it', async () => {
     const t = await setup();
@@ -222,6 +245,7 @@ describe('offers through Claude', () => {
 
       expect(result.structuredContent).toEqual({
         fields: ['Commute'],
+        importance: everyNormal(['Commute']),
         items: [
           {
             id: acme,
@@ -336,6 +360,7 @@ describe('offers through Claude', () => {
           'score_offer',
           'add_offer_field',
           'rename_offer_field',
+          'set_offer_weights',
         ]),
       );
       expect(names.filter((name) => /offer/.test(name) && /remove|delete/.test(name))).toEqual([]);
@@ -402,8 +427,25 @@ describe('offers through Claude', () => {
           '1 is worst and 5 best; null clears a score. Keys are detail names (base_salary, ' +
           'bonus_percent, sign_on_bonus, equity, retirement, insurance, location, ' +
           'work_arrangement, title, role, pto, leadership, culture, start_date, respond_by) or ' +
-          'custom field names. Scores count toward the overall score, their average.',
+          'custom field names. Scores count toward the overall score, the average of the ' +
+          'scores weighted by how much each detail counts (see set_offer_weights).',
       });
+      expect(byName.set_offer_weights).toMatchObject({
+        title: 'Set how much offer details count',
+        description:
+          "Sets how much offer details count toward every offer's overall score: 0 ignores a " +
+          'detail, 1 is normal (the default), 2 important and 3 critical, three times a normal ' +
+          'one. Keys are detail names (as in score_offer) or custom field names; details not ' +
+          'named keep how much they count. The same for every offer, and shown in the web ' +
+          "app's Settings.",
+      });
+      expect(byName.list_offers?.description).toBe(
+        'Lists every opportunity with an offer, or in the Offer stage, open ones first, each ' +
+          'with its offer (custom fields by name), its scores (0 not offered, 1 worst to 5 best) ' +
+          'and its overall score, the average of its scores weighted by how much each detail ' +
+          'counts. importance says how much each detail and custom field counts (0 ignored to 3 ' +
+          'critical); fields are the custom fields every offer shares. Use it to compare offers.',
+      );
       expect(byName.add_offer_field).toMatchObject({
         title: 'Add a custom offer field',
         description:
@@ -446,6 +488,9 @@ describe('offers through Claude', () => {
       expect(hint('add_offer_field', 'name')).toBe('The new field, at most 60 characters');
       expect(hint('rename_offer_field', 'name')).toBe("The field's current name");
       expect(hint('rename_offer_field', 'new_name')).toBe('Its new name, at most 60 characters');
+      expect(hint('set_offer_weights', 'weights')).toBe(
+        'Detail or custom field name to how much it counts, 0 to 3',
+      );
     } finally {
       await t.close();
     }
@@ -464,8 +509,85 @@ describe('offers through Claude', () => {
         refusal(await t.call('score_offer', { opportunity_id: id, scores: { pto: 1 } })),
       ).toMatch(/^RATE_LIMITED/);
       expect(refusal(await t.call('add_offer_field', { name: 'X' }))).toMatch(/^RATE_LIMITED/);
+      expect(refusal(await t.call('set_offer_weights', { weights: { pto: 2 } }))).toMatch(
+        /^RATE_LIMITED/,
+      );
     } finally {
       await t.close();
     }
   }, 60_000);
+
+  it('sets how much details and custom fields count, by name, and the web app shows it', async () => {
+    const t = await setup();
+    try {
+      await t.call('add_offer_field', { name: 'Commute' });
+
+      const result = await t.call('set_offer_weights', {
+        weights: { base_salary: 3, title: 0, '  commute ': 2 },
+      });
+
+      expect(refusal(result)).toBeUndefined();
+      expect(result.structuredContent).toEqual({
+        importance: {
+          ...everyNormal(['Commute']),
+          base_salary: { value: 3, word: 'Critical' },
+          title: { value: 0, word: 'Ignore' },
+          Commute: { value: 2, word: 'Important' },
+        },
+      });
+      type Settings = { fields: { id: string }[]; weights: Record<string, number> };
+      const settings = (await t.viaWeb('GET', '/offer-fields')).body as Settings;
+      const commute = `custom:${settings.fields[0]?.id ?? ''}`;
+      expect(settings.weights).toEqual({ baseSalary: 3, title: 0, [commute]: 2 });
+
+      // Back to normal, and the others are kept.
+      await t.call('set_offer_weights', { weights: { title: 1 } });
+      expect(((await t.viaWeb('GET', '/offer-fields')).body as Settings).weights).toEqual({
+        baseSalary: 3,
+        [commute]: 2,
+      });
+    } finally {
+      await t.close();
+    }
+  });
+
+  it('refuses an unknown name, saying which exist, and changes nothing', async () => {
+    const t = await setup();
+    try {
+      await t.call('add_offer_field', { name: 'Commute' });
+      expect(refusal(await t.call('set_offer_weights', { weights: { salary: 3 } }))).toBe(
+        'VALIDATION_ERROR: Unknown detail or custom field: salary. Details are base_salary, ' +
+          'bonus_percent, sign_on_bonus, equity, retirement, insurance, location, ' +
+          'work_arrangement, title, role, pto, leadership, culture, start_date, respond_by; ' +
+          'custom fields are Commute.',
+      );
+      const settings = (await t.viaWeb('GET', '/offer-fields')).body as { weights: object };
+      expect(settings.weights).toEqual({});
+    } finally {
+      await t.close();
+    }
+  });
+
+  it('reports the weighted overall in list_offers and get_opportunity', async () => {
+    const t = await setup();
+    try {
+      const id = await t.opportunity('Acme', 'OFFER');
+      await t.call('update_offer', { opportunity_id: id, base_salary: 150000 });
+      await t.call('score_offer', { opportunity_id: id, scores: { base_salary: 5, pto: 1 } });
+      await t.call('set_offer_weights', { weights: { base_salary: 3 } });
+
+      // (3×5 + 1) ÷ 4 = 4, where the plain average would be 3.
+      const listed = (await t.call('list_offers')).structuredContent as {
+        items: { overall: number }[];
+        importance: Record<string, { value: number }>;
+      };
+      expect(listed.items[0]?.overall).toBe(4);
+      expect(listed.importance.base_salary).toEqual({ value: 3, word: 'Critical' });
+      expect((await t.call('get_opportunity', { id })).structuredContent).toMatchObject({
+        offerOverall: 4,
+      });
+    } finally {
+      await t.close();
+    }
+  });
 });

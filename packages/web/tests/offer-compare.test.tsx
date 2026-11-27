@@ -21,7 +21,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const FIELDS: OfferFields = { fields: [{ id: 'f1', name: 'Commute' }], removed: [], version: 1 };
+const FIELDS: OfferFields = {
+  fields: [{ id: 'f1', name: 'Commute' }],
+  removed: [],
+  weights: {},
+  version: 1,
+};
 
 const offerOf = (details: Partial<Offer>): Offer => ({ ...details, createdAt: AT, updatedAt: AT });
 
@@ -67,7 +72,7 @@ const details = (...opportunities: OpportunityWithHistory[]) =>
   );
 
 describe('the Offers page', () => {
-  it('is in the navigation, before the archive', async () => {
+  it('is in the navigation, before the archive and Settings', async () => {
     mockApi(lists());
     renderApp('/');
     const nav = screen.getByRole('navigation', { name: 'Main' });
@@ -75,7 +80,7 @@ describe('the Offers page', () => {
       within(nav)
         .getAllByRole('link')
         .map((link) => link.textContent),
-    ).toEqual(['Overview', 'Networking leadsLeads', 'Offers', 'Archive']);
+    ).toEqual(['Overview', 'Networking leadsLeads', 'Offers', 'Archive', 'Settings']);
     await userEvent.click(within(nav).getByRole('link', { name: 'Offers' }));
     expect(await screen.findByRole('heading', { name: 'Offers' })).toBeInTheDocument();
   });
@@ -516,5 +521,107 @@ describe('the comparison', () => {
     failing = false;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('table')).toBeInTheDocument();
+  });
+});
+
+describe('the weighted overall score (feature 014)', () => {
+  // Acme: base salary 5 (Critical), PTO 4 (Normal), equity 0 (Ignored) → (3×5 + 4) ÷ 4 = 4.75.
+  const weighted = (weights: Record<string, number>) => ({
+    ...lists(),
+    ...details(acme, bolt),
+    'GET /offer-fields': () => jsonResponse(200, { ...FIELDS, weights }),
+  });
+
+  it('weighs each score by how much its detail counts, on the comparison', async () => {
+    mockApi(weighted({ baseSalary: 3, equity: 0 }));
+    renderApp('/offers/compare?ids=a,b');
+
+    await screen.findByRole('table');
+    const overall = screen.getByRole('rowheader', { name: 'Overall' }).closest('tr') as HTMLElement;
+    expect(
+      within(overall)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual(['4.8 · Best', '4.0 · Good']);
+  });
+
+  it('weighs them on the Offers page', async () => {
+    mockApi(weighted({ baseSalary: 3, equity: 0 }));
+    renderApp('/offers');
+
+    const list = await screen.findByRole('list', { name: 'Offers' });
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Overall4.8 · Best');
+  });
+
+  it("weighs them on the opportunity's Offer section", async () => {
+    mockApi(weighted({ baseSalary: 3, equity: 0 }));
+    renderApp('/opportunities/a');
+
+    expect(await screen.findByText(/Overall score:/)).toHaveTextContent(
+      'Overall score: 4.8 · Best',
+    );
+  });
+
+  it('says "Not scored" when only Ignored details are scored', async () => {
+    mockApi(weighted({ baseSalary: 0, pto: 0, equity: 0 }));
+    renderApp('/offers/compare?ids=a,b');
+
+    await screen.findByRole('table');
+    const overall = screen.getByRole('rowheader', { name: 'Overall' }).closest('tr') as HTMLElement;
+    expect(
+      within(overall)
+        .getAllByRole('cell')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Not scored', 'Not scored']);
+  });
+
+  it('waits for the settings before listing offers, so no score is shown unweighted', async () => {
+    let finish: (response: Response) => void = () => undefined;
+    mockApi({
+      ...weighted({ baseSalary: 3 }),
+      'GET /offer-fields': () =>
+        new Promise<Response>((resolve) => {
+          finish = resolve;
+        }),
+    });
+    renderApp('/offers');
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading…');
+    expect(screen.queryByRole('list', { name: 'Offers' })).toBeNull();
+    finish(jsonResponse(200, { ...FIELDS, weights: { baseSalary: 3, equity: 0 } }));
+    const list = await screen.findByRole('list', { name: 'Offers' });
+    expect(within(list).getAllByRole('listitem')[0]).toHaveTextContent('Overall4.8 · Best');
+  });
+
+  it('shows how much a detail counts beside its name, unless it is Normal', async () => {
+    mockApi(weighted({ baseSalary: 3, pto: 2, equity: 0, 'custom:f1': 3 }));
+    renderApp('/offers/compare?ids=a,b');
+
+    const table = await screen.findByRole('table');
+    const names = within(table)
+      .getAllByRole('rowheader')
+      .map((header) => header.textContent);
+    expect(names.slice(0, 4)).toEqual([
+      'Base salary · Critical',
+      'Bonus',
+      'Sign-on bonus',
+      "Equity · Ignored, doesn't count",
+    ]);
+    expect(names).toContain('PTO · Important');
+    expect(names).toContain('Commute · Critical');
+    expect(names).toContain('Title');
+    const ignored = screen.getByRole('rowheader', { name: "Equity · Ignored, doesn't count" });
+    expect(within(ignored).getByText("Ignored, doesn't count")).toHaveClass(/ignored/);
+    expect(
+      within(screen.getByRole('rowheader', { name: 'PTO · Important' })).getByText('Important'),
+    ).not.toHaveClass(/ignored/);
+    // An Ignored detail can still be scored; its score is kept for later.
+    expect(screen.getByRole('combobox', { name: 'Score Equity for Acme' })).toHaveDisplayValue(
+      '0 · Not offered',
+    );
+    expect(screen.getByRole('link', { name: 'Change what each detail counts' })).toHaveAttribute(
+      'href',
+      '/settings',
+    );
   });
 });

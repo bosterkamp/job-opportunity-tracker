@@ -4,6 +4,8 @@ import {
   customFieldId,
   customKey,
   findPossibleDuplicate,
+  importanceWord,
+  MAX_IMPORTANCE,
   INTERVIEW_FORMATS,
   INTERVIEW_KINDS,
   INTERVIEW_OUTCOMES,
@@ -17,6 +19,7 @@ import {
   OPEN_STAGES,
   parseAmount,
   STAGE_IDS,
+  weightOf,
   WORK_ARRANGEMENTS,
   type LeadWithOpportunities,
   type OfferDetail,
@@ -145,7 +148,7 @@ function namedOffer(o: Opportunity, fields: OfferFields) {
         return id === undefined || current.has(id) ? [[namedKey(key, fields), score]] : [];
       }),
     ),
-    offerOverall: offerOverall(scores, fields.fields) ?? null,
+    offerOverall: offerOverall(scores, fields.fields, fields.weights) ?? null,
   };
 }
 
@@ -300,8 +303,9 @@ export function registerReadTools(server: McpServer, { api, now }: ToolDeps): vo
       description:
         'Lists every opportunity with an offer, or in the Offer stage, open ones first, each ' +
         'with its offer (custom fields by name), its scores (0 not offered, 1 worst to 5 best) ' +
-        'and its overall score, the average of its scores. fields are the custom fields every ' +
-        'offer shares. Use it to compare offers.',
+        'and its overall score, the average of its scores weighted by how much each detail ' +
+        'counts. importance says how much each detail and custom field counts (0 ignored to 3 ' +
+        'critical); fields are the custom fields every offer shares. Use it to compare offers.',
       inputSchema: {},
       annotations: READ_ONLY,
     },
@@ -311,6 +315,7 @@ export function registerReadTools(server: McpServer, { api, now }: ToolDeps): vo
         const all = [...(await list(api, 'OPEN')), ...(await list(api, 'CLOSED'))].filter(isOffer);
         return {
           fields: fields.fields.map(({ name }) => name),
+          importance: importanceOf(fields),
           items: all.map((o) => {
             const named = namedOffer(o, fields);
             return {
@@ -380,6 +385,39 @@ const offerInputs = Object.fromEntries(
       .optional(),
   ]),
 ) as Record<string, z.ZodOptional<z.ZodNullable<z.ZodType>>>;
+
+// How much each detail and custom field counts (feature 014), by the names Claude uses.
+function importanceOf(fields: OfferFields): Record<string, { value: number; word: string }> {
+  const entry = (key: string) => {
+    const value = weightOf(key, fields.weights);
+    return { value, word: importanceWord(value) };
+  };
+  const named: [string, string][] = [
+    ...OFFER_DETAILS.map((detail): [string, string] => [toolName(detail), detail]),
+    ...fields.fields.map((field): [string, string] => [field.name, customKey(field.id)]),
+  ];
+  return Object.fromEntries(named.map(([name, key]) => [name, entry(key)]));
+}
+
+// The settings key for a detail's tool name or a custom field's name. An unknown name is
+// refused with the names that exist, so Claude can correct it.
+function weightKey(fields: OfferFields, name: string): string {
+  const detail = OFFER_TOOL_NAMES[name];
+  if (detail) {
+    return detail;
+  }
+  const wanted = name.trim().toLowerCase();
+  const field = fields.fields.find((f) => f.name.toLowerCase() === wanted);
+  if (!field) {
+    const custom = fields.fields.map((f) => f.name).join(', ') || 'none';
+    throw new ToolError(
+      'VALIDATION_ERROR',
+      `Unknown detail or custom field: ${name}. Details are ` +
+        `${OFFER_DETAILS.map(toolName).join(', ')}; custom fields are ${custom}.`,
+    );
+  }
+  return customKey(field.id);
+}
 
 // A custom field by name, regardless of case.
 function fieldByName(fields: OfferFields, name: string) {
@@ -740,7 +778,8 @@ export function registerWriteTools(
         "Scores an offer's details for comparing offers: 0 means not offered or not applicable, " +
         '1 is worst and 5 best; null clears a score. Keys are detail names (base_salary, ' +
         `${OFFER_DETAILS.slice(1).map(toolName).join(', ')}) or custom field names. ` +
-        'Scores count toward the overall score, their average.',
+        'Scores count toward the overall score, the average of the scores weighted by how ' +
+        'much each detail counts (see set_offer_weights).',
       inputSchema: {
         opportunity_id: opportunityId,
         scores: z
@@ -806,6 +845,39 @@ export function registerWriteTools(
           }));
         }),
       ),
+  );
+
+  server.registerTool(
+    'set_offer_weights',
+    {
+      title: 'Set how much offer details count',
+      description:
+        "Sets how much offer details count toward every offer's overall score: 0 ignores a " +
+        'detail, 1 is normal (the default), 2 important and 3 critical, three times a normal ' +
+        'one. Keys are detail names (as in score_offer) or custom field names; details not ' +
+        'named keep how much they count. The same for every offer, and shown in the web ' +
+        "app's Settings.",
+      inputSchema: {
+        weights: z
+          .record(z.string(), z.number().int().min(0).max(MAX_IMPORTANCE))
+          .describe('Detail or custom field name to how much it counts, 0 to 3'),
+      },
+      annotations: CHANGES,
+    },
+    ({ weights }) =>
+      run(async () => {
+        const fields = await offerFields(api);
+        const body = Object.fromEntries(
+          Object.entries(weights).map(([name, value]) => [weightKey(fields, name), value]),
+        );
+        await takeChange(now());
+        const saved = (await expectOk(
+          api('PATCH', '/offer-weights', {
+            body: { weights: body, expectedVersion: fields.version },
+          }),
+        )) as OfferFields;
+        return { importance: importanceOf(saved) };
+      }),
   );
 
   // Networking leads (feature 010). They can be deleted only in the web app.

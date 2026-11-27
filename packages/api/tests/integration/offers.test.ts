@@ -1,5 +1,5 @@
 // @module-tag offer
-import { QueryCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHandler } from '../../src/handler.js';
 import { createOfferFieldsRepo } from '../../src/repo/offerFieldsRepo.js';
@@ -66,9 +66,12 @@ const getFields = async () => {
   return JSON.parse(result.body ?? 'null') as {
     fields: { id: string; name: string }[];
     removed: { id: string; name: string }[];
+    weights: Record<string, number>;
     version: number;
   };
 };
+const putWeights = (body: unknown) => handle(apiEvent('PATCH', '/offer-weights', { body }));
+const settingsConflict = 'Settings changed since you loaded them. Reload and try again.';
 const putFields = (body: unknown, confirm = false) =>
   handle(
     apiEvent('PATCH', '/offer-fields', {
@@ -471,7 +474,7 @@ describe('reading offers', () => {
 
 describe('the custom fields', () => {
   it('starts empty', async () => {
-    expect(await getFields()).toEqual({ fields: [], removed: [], version: 0 });
+    expect(await getFields()).toEqual({ fields: [], removed: [], weights: {}, version: 0 });
   });
 
   it('adds, renames and reorders, giving new fields an id', async () => {
@@ -500,6 +503,7 @@ describe('the custom fields', () => {
         { id: commute.id, name: 'Commute' },
       ],
       removed: [],
+      weights: {},
       version: 2,
     });
   });
@@ -538,7 +542,7 @@ describe('the custom fields', () => {
     expect(stale.statusCode).toBe(409);
     expect(parse(stale)).toMatchObject({
       code: 'CONFLICT',
-      message: 'The custom fields changed since you loaded them. Reload and try again.',
+      message: settingsConflict,
     });
 
     expect(
@@ -560,9 +564,127 @@ describe('the custom fields', () => {
       putFields({ fields: [{ name: 'B' }], expectedVersion: 0 }),
     ]);
     expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
-    expect(parse(results.find((r) => r.statusCode === 409) ?? {}).message).toBe(
-      'The custom fields changed since you loaded them. Reload and try again.',
-    );
+    expect(parse(results.find((r) => r.statusCode === 409) ?? {}).message).toBe(settingsConflict);
     expect((await getFields()).fields).toHaveLength(1);
+  });
+});
+
+describe('how much each detail counts', () => {
+  async function withField() {
+    const added = parse(
+      await putFields({ fields: [{ name: 'Commute' }], expectedVersion: 0 }),
+    ) as unknown as { fields: { id: string; name: string }[] };
+    return (added.fields[0] as { id: string }).id;
+  }
+
+  it('reads a settings item stored before weights as everything Normal', async () => {
+    await docs.send(
+      new PutCommand({
+        TableName: config.tableName,
+        Item: { PK: settingsPk, SK: 'OFFER_FIELDS', fields: [], removed: [], version: 3 },
+      }),
+    );
+    expect(await getFields()).toEqual({ fields: [], removed: [], weights: {}, version: 3 });
+  });
+
+  it('sets details and custom fields, keeping the rest, and leaves Normal out', async () => {
+    const commute = await withField();
+    const first = await putWeights({
+      weights: { baseSalary: 3, title: 0, [`custom:${commute}`]: 2 },
+      expectedVersion: 1,
+    });
+    expect(first.statusCode).toBe(200);
+    expect(parse(first)).toEqual({
+      fields: [{ id: commute, name: 'Commute' }],
+      removed: [],
+      weights: { baseSalary: 3, title: 0, [`custom:${commute}`]: 2 },
+      version: 2,
+    });
+
+    // Merged: pto is added, title goes back to Normal (left out), the rest are kept.
+    await putWeights({ weights: { pto: 2, title: 1 }, expectedVersion: 2 });
+    expect(await getFields()).toMatchObject({
+      weights: { baseSalary: 3, pto: 2, [`custom:${commute}`]: 2 },
+      version: 3,
+    });
+  });
+
+  it('refuses unknown details and fields, and importances outside 0 to 3', async () => {
+    await withField();
+    for (const key of ['custom:nope', 'salary']) {
+      const result = await putWeights({ weights: { [key]: 2 }, expectedVersion: 1 });
+      expect(result.statusCode).toBe(400);
+      expect(parse(result)).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        message: 'Unknown detail to weigh',
+        fields: [`weights.${key}`],
+      });
+    }
+    expect(parse(await putWeights({ weights: { pto: 4 }, expectedVersion: 1 })).message).toBe(
+      'Choose an importance from 0 to 3',
+    );
+    expect(parse(await putWeights({ weights: {}, expectedVersion: 1 })).message).toBe(
+      'Choose a detail to weigh',
+    );
+    expect((await getFields()).version).toBe(1);
+  });
+
+  it("refuses a removed field's weight", async () => {
+    const commute = await withField();
+    await putFields({ fields: [], expectedVersion: 1 }, true);
+    const result = await putWeights({ weights: { [`custom:${commute}`]: 3 }, expectedVersion: 2 });
+    expect(parse(result)).toMatchObject({ message: 'Unknown detail to weigh' });
+  });
+
+  it('refuses a stale version, and lets only one of two racing changes through', async () => {
+    await putWeights({ weights: { pto: 2 }, expectedVersion: 0 });
+
+    const stale = await putWeights({ weights: { pto: 3 }, expectedVersion: 0 });
+    expect(stale.statusCode).toBe(409);
+    expect(parse(stale)).toMatchObject({ code: 'CONFLICT', message: settingsConflict });
+
+    const results = await Promise.all([
+      putWeights({ weights: { title: 0 }, expectedVersion: 1 }),
+      putWeights({ weights: { role: 3 }, expectedVersion: 1 }),
+    ]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([200, 409]);
+    expect(Object.keys((await getFields()).weights)).toHaveLength(2);
+  });
+
+  it('shares one version with the custom fields', async () => {
+    await putWeights({ weights: { pto: 2 }, expectedVersion: 0 });
+    // A field change made against the version before the weight change is refused.
+    const stale = await putFields({ fields: [{ name: 'Commute' }], expectedVersion: 0 });
+    expect(parse(stale)).toMatchObject({ code: 'CONFLICT', message: settingsConflict });
+    expect(
+      (await putFields({ fields: [{ name: 'Commute' }], expectedVersion: 1 })).statusCode,
+    ).toBe(200);
+    expect(await getFields()).toMatchObject({ weights: { pto: 2 }, version: 2 });
+  });
+
+  it("drops a removed field's weight, and keeps a renamed one's", async () => {
+    const added = parse(
+      await putFields({ fields: [{ name: 'Commute' }, { name: 'Gym' }], expectedVersion: 0 }),
+    ) as unknown as { fields: [{ id: string }, { id: string }] };
+    const [commute, gym] = added.fields;
+    await putWeights({
+      weights: { [`custom:${commute.id}`]: 3, [`custom:${gym.id}`]: 0, pto: 2 },
+      expectedVersion: 1,
+    });
+
+    await putFields({ fields: [{ id: gym.id, name: 'Gym membership' }], expectedVersion: 2 }, true);
+
+    expect((await getFields()).weights).toEqual({ [`custom:${gym.id}`]: 0, pto: 2 });
+  });
+
+  it('changes no opportunity, offer, score or history', async () => {
+    const created = await opportunity();
+    await saveOffer(created.id, { baseSalary: 150000 });
+    await score(created.id, { baseSalary: 4 });
+    const before = await items(created.id);
+
+    await putWeights({ weights: { baseSalary: 3 }, expectedVersion: 0 });
+
+    expect(await items(created.id)).toEqual(before);
   });
 });

@@ -23,6 +23,7 @@ afterEach(() => {
 const FIELDS: OfferFields = {
   fields: [{ id: 'f1', name: 'Commute' }],
   removed: [{ id: 'f2', name: 'Tuition' }],
+  weights: {},
   version: 3,
 };
 
@@ -119,7 +120,10 @@ describe('the Offer section', () => {
     renderApp('/opportunities/a');
 
     expect(await screen.findByText('No details yet.')).toBeInTheDocument();
-    expect(screen.getByText(/Overall score:/)).toHaveTextContent('Overall score: Not scored');
+    // The overall waits for the settings, which say how much each detail counts (feature 014).
+    expect(await screen.findByText(/Overall score:/)).toHaveTextContent(
+      'Overall score: Not scored',
+    );
   });
 
   it('removes the offer after asking, saying its history goes too', async () => {

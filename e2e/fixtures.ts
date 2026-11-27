@@ -163,6 +163,20 @@ export async function scoreOffer(
   expect(response.status()).toBe(200);
 }
 
+// Sets how much offer details count (feature 014) straight through the local API, as of the
+// settings' current version.
+export async function setWeights(
+  request: APIRequestContext,
+  weights: Record<string, number>,
+): Promise<void> {
+  const current = await request.get(`${API_URL}/offer-fields`);
+  const { version } = (await current.json()) as { version: number };
+  const response = await request.patch(`${API_URL}/offer-weights`, {
+    data: { weights, expectedVersion: version },
+  });
+  expect(response.status()).toBe(200);
+}
+
 // Opens an opportunity from the overview by its company name.
 export async function openOpportunity(page: Page, company: string): Promise<void> {
   await page.goto('/');

@@ -14,6 +14,8 @@ Later features add to this model; the table layout below includes their items:
 - **013, offer details and comparison**: the opportunity's `offer`, `offerScores` and
   `offerVersion`, its `OFFERCHANGE#` history items, and the `SETTINGS`/`OFFER_FIELDS` item for
   the custom fields ([data model](../013-offer-comparison/data-model.md))
+- **014, offer weights and Settings**: `weights` on the `SETTINGS`/`OFFER_FIELDS` item, how much
+  each offer detail counts ([data model](../014-offer-weights/data-model.md))
 
 ## Entities
 

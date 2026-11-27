@@ -25,6 +25,7 @@ describe('AppRoutes', () => {
     ['/', 'Overview'],
     ['/archive', 'Archive'],
     ['/leads', 'Networking leads'],
+    ['/settings', 'Settings'],
     ['/opportunities/new', 'Add opportunity'],
     ['/no/such/page', 'Page not found'],
   ])('shows the %s page', (path, heading) => {
@@ -61,6 +62,7 @@ describe('Layout', () => {
       ['Networking leadsLeads', '/leads'],
       ['Offers', '/offers'],
       ['Archive', '/archive'],
+      ['Settings', '/settings'],
     ]);
     expect(screen.getByRole('link', { name: 'Add opportunity' })).toHaveAttribute(
       'href',
@@ -97,6 +99,7 @@ describe('Layout', () => {
     ['/', 'Overview'],
     ['/archive', 'Archive'],
     ['/leads', 'Networking leadsLeads'],
+    ['/settings', 'Settings'],
   ])('marks only the current nav item on %s', (path, current) => {
     renderAt(path);
 

@@ -14,8 +14,10 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/leads', label: 'Networking leads', short: 'Leads' },
   // Before the archive (feature 013).
   { to: '/offers', label: 'Offers' },
-  // Last, on desktop and phones (feature 011).
+  // After the stages and offers, on desktop and phones (feature 011).
   { to: '/archive', label: 'Archive' },
+  // Configuration, last (feature 014).
+  { to: '/settings', label: 'Settings' },
 ];
 
 export function Layout() {

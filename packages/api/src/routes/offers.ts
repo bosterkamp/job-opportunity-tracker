@@ -1,10 +1,14 @@
 import {
   customFieldId,
+  customKey,
+  isOfferDetail,
+  NORMAL_IMPORTANCE,
   OFFER_DETAILS,
   OFFER_MESSAGES,
   OfferFieldsPatchSchema,
   OfferInputSchema,
   OfferScoresPatchSchema,
+  OfferWeightsPatchSchema,
   offerChanges,
   type Offer,
   type OfferField,
@@ -17,14 +21,16 @@ import type { OpportunityRepo } from '../repo/opportunityRepo.js';
 import type { Route } from '../router.js';
 import type { OpportunityRouteDeps } from './opportunities.js';
 
-// An opportunity's offer, its scores, and the custom fields every offer shares (feature 013).
-// None of them changes the stage or its history (FR-015).
+// An opportunity's offer, its scores, and the custom fields every offer shares (feature 013),
+// with how much each detail counts (feature 014). None of them changes the stage or its history
+// (FR-015).
 
 export interface OfferRouteDeps extends OpportunityRouteDeps {
   offerFieldsRepo: OfferFieldsRepo;
 }
 
-const FIELDS_CONFLICT = 'The custom fields changed since you loaded them. Reload and try again.';
+// The custom fields and the weights are one settings item with one version (feature 014).
+const SETTINGS_CONFLICT = OFFER_MESSAGES.SETTINGS_CONFLICT;
 
 function confirmed(headers: Record<string, string | undefined>, what: string) {
   // Removing is deliberate, as deleting an opportunity is.
@@ -180,7 +186,7 @@ export function offerRoutes({ repo, offerFieldsRepo, newId, now, via }: OfferRou
         const input = OfferFieldsPatchSchema.parse(body);
         const current = await offerFieldsRepo.get();
         if (input.expectedVersion !== current.version) {
-          throw new ApiError('CONFLICT', FIELDS_CONFLICT);
+          throw new ApiError('CONFLICT', SETTINGS_CONFLICT);
         }
         const known = new Map(current.fields.map((field) => [field.id, field]));
         const fields: OfferField[] = input.fields.map((field, index) => {
@@ -197,14 +203,49 @@ export function offerRoutes({ repo, offerFieldsRepo, newId, now, via }: OfferRou
           confirmed(headers, 'a custom field');
         }
         // A removed field keeps its last name, so the history can still name it. (Its id is
-        // never used again, so it's never in both lists.)
+        // never used again, so it's never in both lists.) Its weight goes with it.
+        const droppedKeys = new Set(dropped.map((field) => customKey(field.id)));
         const next = {
           fields,
           removed: [...current.removed, ...dropped],
+          weights: Object.fromEntries(
+            Object.entries(current.weights).filter(([key]) => !droppedKeys.has(key)),
+          ),
           version: current.version + 1,
         };
         if (!(await offerFieldsRepo.put(next, current.version))) {
-          throw new ApiError('CONFLICT', FIELDS_CONFLICT);
+          throw new ApiError('CONFLICT', SETTINGS_CONFLICT);
+        }
+        return json(200, next);
+      },
+    },
+    {
+      // How much each detail counts (feature 014): the keys named are set, the others kept.
+      // Normal is never stored.
+      method: 'PATCH',
+      path: '/offer-weights',
+      async handle({ body }) {
+        const input = OfferWeightsPatchSchema.parse(body);
+        const current = await offerFieldsRepo.get();
+        if (input.expectedVersion !== current.version) {
+          throw new ApiError('CONFLICT', SETTINGS_CONFLICT);
+        }
+        const fieldIds = new Set(current.fields.map((field) => field.id));
+        const weights: Record<string, number> = { ...current.weights };
+        for (const [key, importance] of Object.entries(input.weights)) {
+          const fieldId = customFieldId(key);
+          if (fieldId === undefined ? !isOfferDetail(key) : !fieldIds.has(fieldId)) {
+            throw new ApiError('VALIDATION_ERROR', OFFER_MESSAGES.WEIGHT_KEY, [`weights.${key}`]);
+          }
+          if (importance === NORMAL_IMPORTANCE) {
+            delete weights[key];
+          } else {
+            weights[key] = importance;
+          }
+        }
+        const next = { ...current, weights, version: current.version + 1 };
+        if (!(await offerFieldsRepo.put(next, current.version))) {
+          throw new ApiError('CONFLICT', SETTINGS_CONFLICT);
         }
         return json(200, next);
       },

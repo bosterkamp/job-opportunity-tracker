@@ -12,6 +12,7 @@ import {
   type LeadNoteInput,
   type LeadNotePatch,
   type LeadPatch,
+  type OfferFields,
   type OfferFieldsPatch,
   type OfferInput,
   type OpportunityInput,
@@ -19,6 +20,7 @@ import {
   type OpportunityStatus,
 } from '@jot/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useRef } from 'react';
 import { z } from 'zod';
 import type { StageMove } from '../components/MoveStageMenu';
 import { useApiClient } from './ApiClientProvider';
@@ -248,6 +250,41 @@ export function useSaveOfferFields() {
       }
     },
   });
+}
+
+// Saves how much one detail counts (feature 014). Saves go one at a time: each waits for the
+// last and sends the version it returned, so quick changes don't refuse each other as stale.
+// The settings in the cache are replaced by each reply; a conflict reloads them.
+export function useSaveOfferWeight() {
+  const api = useApiClient();
+  const queryClient = useQueryClient();
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+
+  return useCallback(
+    (key: string, importance: number): Promise<OfferFields> => {
+      const save = queue.current
+        .catch(() => undefined)
+        .then(async () => {
+          const current = queryClient.getQueryData<OfferFields>(queryKeys.offerFields);
+          try {
+            const saved = await api.request('PATCH', '/offer-weights', {
+              body: { weights: { [key]: importance }, expectedVersion: current?.version ?? 0 },
+              schema: OfferFieldsSchema,
+            });
+            queryClient.setQueryData(queryKeys.offerFields, saved);
+            return saved;
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 409) {
+              await queryClient.invalidateQueries({ queryKey: queryKeys.offerFields });
+            }
+            throw error;
+          }
+        });
+      queue.current = save;
+      return save;
+    },
+    [api, queryClient],
+  );
 }
 
 // Reads a posting link to fill the add form (feature 002). Nothing is stored.

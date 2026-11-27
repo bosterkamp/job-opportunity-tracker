@@ -16,6 +16,7 @@ import { NewOpportunityPage } from './pages/NewOpportunity';
 import { OffersPage } from './pages/Offers';
 import { OpportunityDetailPage } from './pages/OpportunityDetail';
 import { OverviewPage } from './pages/Overview';
+import { SettingsPage } from './pages/Settings';
 import { NotFoundPage } from './pages/NotFound';
 
 export function AppRoutes() {
@@ -25,6 +26,7 @@ export function AppRoutes() {
         <Route index element={<OverviewPage />} />
         <Route path="archive" element={<ArchivePage />} />
         <Route path="leads" element={<LeadsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="offers" element={<OffersPage />} />
         <Route path="offers/compare" element={<CompareOffersPage />} />
         <Route path="opportunities/new" element={<NewOpportunityPage />} />
